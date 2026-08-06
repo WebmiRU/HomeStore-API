@@ -27,4 +27,17 @@ class Store extends Model
     {
         return $this->hasOne(Code::class);
     }
+
+    public function ancestors(): array
+    {
+        $chain = [];
+        $current = $this->parent;
+
+        while ($current) {
+            $chain[] = $current->getAttributes();
+            $current = $current->parent;
+        }
+
+        return array_reverse($chain);
+    }
 }

@@ -29,7 +29,7 @@ class CodeController extends Controller
             . substr($lower, 16, 4) . '-'
             . substr($lower, 20);
 
-        $code = Code::with(['store', 'item'])->where('code', $uuid)->first();
+        $code = Code::with(['store.parent', 'item.store.parent'])->where('code', $uuid)->first();
 
         if (!$code) {
             return response()->json(['error' => 'Not found'], 404);

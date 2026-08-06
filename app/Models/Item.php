@@ -10,10 +10,16 @@ class Item extends Model
 
     protected $fillable = [
         'title',
+        'store_id',
     ];
 
     public function code()
     {
         return $this->hasOne(Code::class);
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
     }
 }

@@ -14,7 +14,9 @@ return new class extends Migration
         Schema::create('item', function (Blueprint $table) {
             $table->id();
             $table->text('title');
+            $table->unsignedBigInteger('store_id')->nullable();
             $table->timestamps();
+            $table->foreign('store_id')->references('id')->on('store')->cascadeOnDelete()->cascadeOnUpdate();
         });
     }
 

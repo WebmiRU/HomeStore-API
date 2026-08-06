@@ -11,12 +11,27 @@ class CodeResource extends JsonResource
     {
         $type = $this->store_id ? 'store' : ($this->item_id ? 'item' : null);
 
+        $parents = [];
+
+        if ($type === 'store' && $this->relationLoaded('store') && $this->store) {
+            $parents = $this->store->ancestors();
+        } elseif ($type === 'item' && $this->relationLoaded('item') && $this->item) {
+            $item = $this->item;
+            if ($item->relationLoaded('store') && $item->store) {
+                $parents = array_merge(
+                    [$item->store->getAttributes()],
+                    $item->store->ancestors()
+                );
+            }
+        }
+
         return [
             'code' => $this->code,
             'type' => $type,
             'payload' => $type && $this->relationLoaded($type) && $this->{$type}
-                ? $this->{$type}->toArray()
+                ? $this->{$type}->getAttributes()
                 : null,
+            'parents' => $parents,
         ];
     }
 }

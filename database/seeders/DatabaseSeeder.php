@@ -65,6 +65,7 @@ class DatabaseSeeder extends Seeder
                 for ($k = 0; $k < $itemCount; $k++) {
                     $item = Item::create([
                         'title' => $tools[$toolIndex++],
+                        'store_id' => $box->id,
                     ]);
 
                     Code::create([
