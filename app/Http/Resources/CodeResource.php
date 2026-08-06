@@ -19,8 +19,8 @@ class CodeResource extends JsonResource
             $item = $this->item;
             if ($item->relationLoaded('store') && $item->store) {
                 $parents = array_merge(
-                    [$item->store->getAttributes()],
-                    $item->store->ancestors()
+                    $item->store->ancestors(),
+                    [$item->store->getAttributes()]
                 );
             }
         }
