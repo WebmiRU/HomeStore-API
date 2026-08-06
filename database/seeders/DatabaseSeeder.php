@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Code;
+use App\Models\Item;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -22,6 +23,14 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        $tools = [
+            'Пассатижи', 'Отвёртка', 'Бокорезы', 'Дрель',
+            'Молоток', 'Ножовка', 'Рубанок', 'Стамеска',
+            'Шуруповёрт', 'Гаечный ключ', 'Уровень', 'Рулетка',
+            'Напильник', 'Зубило', 'Лобзик', 'Струбцина',
+            'Шлифмашинка', 'Клещи',
+        ];
 
         for ($i = 1; $i <= 3; $i++) {
             $cabinet = Store::create([
@@ -43,6 +52,21 @@ class DatabaseSeeder extends Seeder
                     'code' => Str::orderedUuid(),
                     'store_id' => $box->id,
                 ]);
+
+                $itemCount = rand(3, 4);
+                $shuffled = $tools;
+                shuffle($shuffled);
+
+                for ($k = 0; $k < $itemCount; $k++) {
+                    $item = Item::create([
+                        'title' => $shuffled[$k],
+                    ]);
+
+                    Code::create([
+                        'code' => Str::orderedUuid(),
+                        'item_id' => $item->id,
+                    ]);
+                }
             }
         }
     }

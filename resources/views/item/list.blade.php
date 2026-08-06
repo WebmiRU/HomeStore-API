@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item List</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 40px;
+            background: #1a1a2e;
+            color: #e0e0e0;
+        }
+        .item-item {
+            background: #16213e;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+        }
+        .item-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            color: #e0e0e0;
+        }
+        .item-code {
+            font-size: 12px;
+            color: #8ab4f8;
+            margin-bottom: 16px;
+            word-break: break-all;
+        }
+        .item-qr {
+            display: inline-block;
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .item-qr svg {
+            display: block;
+        }
+        hr {
+            border: none;
+            border-top: 2px solid #2a2a4a;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    @foreach ($items as $item)
+        <div class="item-item">
+            <div class="item-title">{{ $item->title }}</div>
+            <div class="item-code">{{ strtoupper(str_replace('-', '', (string) $item->code->code)) }}</div>
+            <div class="item-qr">{!! $item->qrSvg !!}</div>
+        </div>
+        @unless ($loop->last)
+            <hr/>
+        @endunless
+    @endforeach
+</body>
+</html>

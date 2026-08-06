@@ -11,4 +11,9 @@ class Item extends Model
     protected $fillable = [
         'title',
     ];
+
+    public function code()
+    {
+        return $this->hasOne(Code::class);
+    }
 }
