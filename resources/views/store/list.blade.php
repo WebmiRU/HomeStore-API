@@ -31,6 +31,12 @@
             word-break: break-all;
         }
         .store-qr {
+            display: inline-block;
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .store-qr svg {
             display: block;
         }
         hr {

@@ -3,8 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Store;
-use Endroid\QrCode\Builder\Builder;
-use Endroid\QrCode\Writer\SvgWriter;
+use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Http\Request;
 
 class StoreController extends Controller
@@ -21,14 +20,18 @@ class StoreController extends Controller
         $stores->transform(function (Store $store) {
             $uuid = strtoupper(str_replace('-', '', (string) $store->code->code));
 
-            $builder = new Builder(
-                writer: new SvgWriter(),
-                data: $uuid,
-                size: 200,
-                margin: 10,
-            );
+            // QR code (endroid/qr-code) — temporarily replaced with Data Matrix
+            // $builder = new \Endroid\QrCode\Builder\Builder(
+            //     writer: new \Endroid\QrCode\Writer\SvgWriter(),
+            //     data: $uuid,
+            //     size: 200,
+            //     margin: 10,
+            // );
+            // $store->qrSvg = $builder->build()->getString();
 
-            $store->qrSvg = $builder->build()->getString();
+            $barcode = new Barcode();
+            $bobj = $barcode->getBarcodeObj('DATAMATRIX', $uuid, 200, 200);
+            $store->qrSvg = $bobj->getSvgCode();
 
             return $store;
         });
