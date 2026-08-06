@@ -22,4 +22,9 @@ class Store extends Model
     {
         return $this->hasMany(Store::class, 'parent_id');
     }
+
+    public function code()
+    {
+        return $this->hasOne(Code::class);
+    }
 }

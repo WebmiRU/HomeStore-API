@@ -2,10 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Models\Code;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -26,10 +28,20 @@ class DatabaseSeeder extends Seeder
                 'title' => "Шкаф {$i}",
             ]);
 
+            Code::create([
+                'code' => Str::orderedUuid(),
+                'store_id' => $cabinet->id,
+            ]);
+
             for ($j = 1; $j <= 3; $j++) {
-                Store::create([
+                $box = Store::create([
                     'title' => "Коробка {$i}-{$j}",
                     'parent_id' => $cabinet->id,
+                ]);
+
+                Code::create([
+                    'code' => Str::orderedUuid(),
+                    'store_id' => $box->id,
                 ]);
             }
         }
