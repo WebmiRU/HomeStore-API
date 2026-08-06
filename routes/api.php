@@ -23,6 +23,7 @@ Route::get('/health', fn () => response()->json([
 
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {
     Route::get('/', 'index');
+    Route::get('search', 'search');
 });
 
 Route::prefix('store')->controller(StoreController::class)->group(function (): void {
