@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -14,8 +15,8 @@ return new class extends Migration
         Schema::create('code', function (Blueprint $table) {
             $table->id();
             $table->uuid('code')->unique();
-            $table->unsignedBigInteger('item_id');
-            $table->unsignedBigInteger('store_id');
+            $table->unsignedBigInteger('item_id')->nullable();
+            $table->unsignedBigInteger('store_id')->nullable();
             $table->timestamps();
 
             $table->foreign('item_id')
@@ -30,6 +31,8 @@ return new class extends Migration
                 ->cascadeOnDelete()
                 ->cascadeOnUpdate();
         });
+
+        DB::statement('ALTER TABLE "code" ADD CONSTRAINT code_xor_check CHECK (store_id IS NULL OR item_id IS NULL)');
     }
 
     /**
