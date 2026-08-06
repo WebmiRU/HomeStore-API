@@ -13,7 +13,15 @@ return new class extends Migration
     {
         Schema::create('store', function (Blueprint $table) {
             $table->id();
+            $table->text('title');
+            $table->unsignedBigInteger('parent_id')->nullable()->index();
             $table->timestamps();
+
+            $table->foreign('parent_id')
+                ->references('id')
+                ->on('store')
+                ->cascadeOnDelete()
+                ->cascadeOnUpdate();
         });
     }
 
