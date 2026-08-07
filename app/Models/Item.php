@@ -10,6 +10,7 @@ class Item extends Model
 
     protected $fillable = [
         'title',
+        'title_print',
         'store_id',
     ];
 
