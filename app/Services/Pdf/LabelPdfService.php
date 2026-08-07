@@ -213,9 +213,8 @@ class LabelPdfService
      * Начинает с font_size_max, уменьшает с шагом font_size_step,
      * пока текст не поместится в заданную область.
      *
-     * Измерение высоты — measureTextHeight() с пословным переносом
-     * и 25% запасом по ширине (GetStringWidth может занижать
-     * реальную ширину глифов относительно MultiCell).
+     * Использует сбалансированный перенос строк (wrapText),
+     * чтобы строки были примерно одинаковой ширины.
      *
      * @param TCPDF $pdf
      * @param float $x      X левого верхнего угла текстовой области (мм)
@@ -248,12 +247,13 @@ class LabelPdfService
             $pdf->SetFont($fontFamily, '', $size);
 
             $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
-            $textHeight = $this->measureTextHeight($pdf, $text, $w, $lineHeight);
+            $wrapResult = $this->wrapText($pdf, $text, $w);
+            $textHeight = $wrapResult['lines'] * $lineHeight;
 
             if ($textHeight <= $h) {
                 $offsetY = ($h - $textHeight) / 2;
                 $pdf->SetXY($x, $y + $offsetY);
-                $pdf->MultiCell($w, $lineHeight, $text, 0, 'C', false, 0);
+                $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
                 return;
             }
         }
@@ -261,63 +261,191 @@ class LabelPdfService
         // Минимальный кегль — рисуем как есть (обрежется снизу)
         $pdf->SetFont($fontFamily, '', $sizeMin);
         $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
-        $offsetY = ($h - $this->measureTextHeight($pdf, $text, $w, $lineHeight)) / 2;
+        $wrapResult = $this->wrapText($pdf, $text, $w);
+        $offsetY = ($h - $wrapResult['lines'] * $lineHeight) / 2;
         $pdf->SetXY($x, $y + max(0, $offsetY));
-        $pdf->MultiCell($w, $lineHeight, $text, 0, 'C', false, 0);
+        $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
     }
 
     /**
-     * Измеряет высоту текста: пословный перенос + запас 25% по ширине.
+     * Оборачивает текст сбалансированно: строки примерно одинаковой ширины.
      *
-     * GetStringWidth() может расходиться с реальной шириной глифов
-     * в MultiCell() (особенно на condensed-шрифтах с кириллицей),
-     * поэтому эффективная ширина строки берётся с запасом.
+     * В отличие от жадного алгоритма (первая строка под завязку,
+     * последняя — короткая), этот метод распределяет слова так,
+     * чтобы ширина строк была выровнена.
      *
      * @param TCPDF $pdf
-     * @param string $text
-     * @param float  $maxWidthMm  Максимальная ширина строки (мм)
-     * @param float  $lineHeightMm Высота одной строки (мм)
-     * @return float Высота текста (мм)
+     * @param string $text  Исходный текст (одна строка, без \n)
+     * @param float  $maxWidthMm Максимальная ширина строки (мм)
+     * @return array{text: string, lines: int} Текст с явными \n и количество строк
      */
-    private function measureTextHeight(
-        TCPDF $pdf,
-        string $text,
-        float $maxWidthMm,
-        float $lineHeightMm
-    ): float {
+    private function wrapText(TCPDF $pdf, string $text, float $maxWidthMm): array
+    {
         // 25% запас компенсирует расхождение GetStringWidth и MultiCell
         $effectiveWidth = $maxWidthMm / 1.25;
 
-        $lines = 1;
-        $currentLine = '';
-
-        $segments = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-        if ($segments === false) {
-            $segments = [$text];
+        // Разбиваем на слова
+        $words = preg_split('/\s+/u', $text);
+        if ($words === false || count($words) <= 1) {
+            return ['text' => $text, 'lines' => 1];
         }
 
-        foreach ($segments as $segment) {
-            $subParts = explode("\n", $segment);
-            foreach ($subParts as $i => $part) {
-                if ($i > 0) {
-                    $lines++;
-                    $currentLine = '';
-                }
-                if ($part === '') {
-                    continue;
-                }
+        // Если весь текст на одной строке — возвращаем как есть
+        if ($pdf->GetStringWidth($text) <= $effectiveWidth) {
+            return ['text' => $text, 'lines' => 1];
+        }
 
-                $testLine = $currentLine . $part;
-                if ($pdf->GetStringWidth($testLine) > $effectiveWidth) {
-                    $lines++;
-                    $currentLine = $part;
-                } else {
-                    $currentLine = $testLine;
-                }
+        // Измеряем ширину каждого слова
+        $wordWidths = array_map(fn($w) => $pdf->GetStringWidth($w), $words);
+        $spaceWidth = $pdf->GetStringWidth(' ');
+
+        // Определяем минимальное количество строк (жадный подсчёт)
+        $minLines = $this->countGreedyLines($wordWidths, $spaceWidth, $effectiveWidth);
+
+        // Балансируем перенос
+        $balanced = $this->balanceLines($words, $wordWidths, $spaceWidth, $effectiveWidth, $minLines);
+
+        return [
+            'text'  => implode("\n", $balanced),
+            'lines' => count($balanced),
+        ];
+    }
+
+    /**
+     * Жадный подсчёт строк (без балансировки).
+     *
+     * @param float[] $wordWidths
+     * @param float $spaceWidth
+     * @param float $maxWidth
+     * @return int
+     */
+    private function countGreedyLines(array $wordWidths, float $spaceWidth, float $maxWidth): int
+    {
+        $lines = 1;
+        $lineWidth = 0.0;
+
+        foreach ($wordWidths as $ww) {
+            $needWidth = $lineWidth > 0 ? $lineWidth + $spaceWidth + $ww : $ww;
+            if ($needWidth > $maxWidth) {
+                $lines++;
+                $lineWidth = $ww;
+            } else {
+                $lineWidth = $needWidth;
             }
         }
 
-        return $lines * $lineHeightMm;
+        return $lines;
+    }
+
+    /**
+     * Балансирует перенос строк: для 2 строк — оптимальный сплит,
+     * для 3+ — жадный с выравниванием на целевое среднее.
+     *
+     * @param string[] $words
+     * @param float[]  $wordWidths
+     * @param float    $spaceWidth
+     * @param float    $maxWidth
+     * @param int      $targetLines Минимально необходимое количество строк
+     * @return string[] Массив строк (без \n)
+     */
+    private function balanceLines(
+        array $words,
+        array $wordWidths,
+        float $spaceWidth,
+        float $maxWidth,
+        int $targetLines
+    ): array {
+        $n = count($words);
+
+        // 2 строки: ищем оптимальную точку разрыва
+        if ($targetLines === 2) {
+            // Вычисляем префиксные ширины
+            $prefix = [0];
+            foreach ($wordWidths as $ww) {
+                $prev = end($prefix);
+                $prefix[] = $prev > 0 ? $prev + $spaceWidth + $ww : $ww;
+            }
+
+            $totalWidth = $prefix[$n];
+
+            $bestSplit = 1;
+            $bestDiff = PHP_FLOAT_MAX;
+
+            for ($i = 1; $i < $n; $i++) {
+                $line1 = $prefix[$i];
+                // line2 = total - line1 - spaceWidth (убираем пробел-разделитель между строками)
+                // Но при рендеринге пробела между строками нет, так что просто:
+                $line2 = $totalWidth - ($prefix[$i] + $spaceWidth) + $wordWidths[$i];
+                // Упрощённо: оцениваем ширину второй строки как сумму оставшихся слов
+                $remainingWidth = 0;
+                for ($j = $i; $j < $n; $j++) {
+                    $remainingWidth += ($remainingWidth > 0 ? $spaceWidth : 0) + $wordWidths[$j];
+                }
+
+                if ($line1 <= $maxWidth && $remainingWidth <= $maxWidth) {
+                    $diff = abs($line1 - $remainingWidth);
+                    if ($diff < $bestDiff) {
+                        $bestDiff = $diff;
+                        $bestSplit = $i;
+                    }
+                }
+            }
+
+            $line1 = array_slice($words, 0, $bestSplit);
+            $line2 = array_slice($words, $bestSplit);
+            return [implode(' ', $line1), implode(' ', $line2)];
+        }
+
+        // 3+ строк: жадный с целевой шириной = среднее
+        $totalWidth = 0;
+        foreach ($wordWidths as $ww) {
+            $totalWidth += ($totalWidth > 0 ? $spaceWidth : 0) + $ww;
+        }
+        $targetWidth = $totalWidth / $targetLines;
+
+        $lines = [];
+        $lineWords = [];
+        $lineWidth = 0.0;
+        $remaining = $n;
+
+        for ($i = 0; $i < $n; $i++) {
+            $remaining--;
+            $needWidth = $lineWidth > 0 ? $lineWidth + $spaceWidth + $wordWidths[$i] : $wordWidths[$i];
+
+            // Форсируем перенос если не влезает
+            if ($needWidth > $maxWidth && count($lineWords) > 0) {
+                $lines[] = implode(' ', $lineWords);
+                $lineWords = [$words[$i]];
+                $lineWidth = $wordWidths[$i];
+                continue;
+            }
+
+            // Можем ли разорвать здесь для баланса?
+            $linesSoFar = count($lines);
+            $canBreak = $linesSoFar < $targetLines - 1 && $remaining >= ($targetLines - $linesSoFar - 1);
+
+            if ($canBreak && count($lineWords) > 0) {
+                $deviationStay = abs($needWidth - $targetWidth);
+                $deviationBreak = abs($lineWidth - $targetWidth);
+
+                if ($deviationBreak <= $deviationStay) {
+                    // Текущая строка ближе к цели — переносим
+                    $lines[] = implode(' ', $lineWords);
+                    $lineWords = [$words[$i]];
+                    $lineWidth = $wordWidths[$i];
+                    continue;
+                }
+            }
+
+            $lineWords[] = $words[$i];
+            $lineWidth = $needWidth;
+        }
+
+        if (count($lineWords) > 0) {
+            $lines[] = implode(' ', $lineWords);
+        }
+
+        return $lines;
     }
 
 }
