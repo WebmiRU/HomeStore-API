@@ -44,9 +44,9 @@ class LabelPdfService
         'barcode_size' => 13.0,
 
         // Параметры шрифта
-        'font_family'  => 'dejavusans',
+        'font_family'  => 'robotocondensedb',
         'font_size_min' => 5.0,
-        'font_size_max' => 14.0,
+        'font_size_max' => 24.0,
         'font_size_step' => 0.5,
 
         // Множитель межстрочного интервала (от высоты шрифта)
@@ -112,17 +112,31 @@ class LabelPdfService
         $usableW = $cfg['page_width'] - $cfg['page_margin_left'] - $cfg['page_margin_right'];
         $cols = max(1, (int) floor($usableW / $cfg['cell_width']));
 
+        $usableH = $cfg['page_height'] - $cfg['page_margin_top'] - $cfg['page_margin_bottom'];
+        $rowsPerPage = max(1, (int) floor($usableH / $cfg['cell_height']));
+
         $startX = $cfg['page_margin_left'];
         $startY = $cfg['page_margin_top'];
 
-        foreach ($labels as $index => $label) {
-            $col = $index % $cols;
-            $row = (int) floor($index / $cols);
+        $pageRow = 0; // номер строки на текущей странице
 
+        foreach ($labels as $index => $label) {
+            // переход на новую страницу при заполнении строк
+            if ($pageRow >= $rowsPerPage) {
+                $pdf->AddPage();
+                $pageRow = 0;
+            }
+
+            $col = $index % $cols;
             $x = $startX + $col * $cfg['cell_width'];
-            $y = $startY + $row * $cfg['cell_height'];
+            $y = $startY + $pageRow * $cfg['cell_height'];
 
             $this->drawCell($pdf, $x, $y, $label['code'], $label['title'], $cfg);
+
+            // увеличиваем счётчик строк только при переходе на новую строку
+            if ($col === $cols - 1 || $index === count($labels) - 1) {
+                $pageRow++;
+            }
         }
     }
 
@@ -199,6 +213,10 @@ class LabelPdfService
      * Начинает с font_size_max, уменьшает с шагом font_size_step,
      * пока текст не поместится в заданную область.
      *
+     * Измерение высоты — measureTextHeight() с пословным переносом
+     * и 25% запасом по ширине (GetStringWidth может занижать
+     * реальную ширину глифов относительно MultiCell).
+     *
      * @param TCPDF $pdf
      * @param float $x      X левого верхнего угла текстовой области (мм)
      * @param float $y      Y левого верхнего угла текстовой области (мм)
@@ -222,51 +240,63 @@ class LabelPdfService
         $sizeStep = (float) $cfg['font_size_step'];
         $lineHFactor = (float) $cfg['line_height_factor'];
 
+        // Синхронизируем cellheightratio, чтобы getCellHeight()
+        // и MultiCell() использовали одинаковый межстрочный интервал.
+        $pdf->setCellHeightRatio($lineHFactor);
+
         for ($size = $sizeMax; $size >= $sizeMin; $size -= $sizeStep) {
             $pdf->SetFont($fontFamily, '', $size);
 
-            // Измеряем текст
-            $lineHeight = $size * 0.3528 * $lineHFactor; // pt → mm с множителем
-            $textHeight = $this->measureTextHeight($pdf, $text, $w, $size);
+            $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
+            $textHeight = $this->measureTextHeight($pdf, $text, $w, $lineHeight);
 
             if ($textHeight <= $h) {
-                // Влезает — рисуем и выходим
-                $pdf->SetXY($x, $y);
-                $pdf->MultiCell($w, $lineHeight, $text, 0, 'L', false, 0);
+                $offsetY = ($h - $textHeight) / 2;
+                $pdf->SetXY($x, $y + $offsetY);
+                $pdf->MultiCell($w, $lineHeight, $text, 0, 'C', false, 0);
                 return;
             }
         }
 
-        // Даже на минимальном кегле не влезло — рисуем как есть (обрежется)
+        // Минимальный кегль — рисуем как есть (обрежется снизу)
         $pdf->SetFont($fontFamily, '', $sizeMin);
-        $lineHeight = $sizeMin * 0.3528 * $lineHFactor;
-        $pdf->SetXY($x, $y);
-        $pdf->MultiCell($w, $lineHeight, $text, 0, 'L', false, 0);
+        $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
+        $offsetY = ($h - $this->measureTextHeight($pdf, $text, $w, $lineHeight)) / 2;
+        $pdf->SetXY($x, $y + max(0, $offsetY));
+        $pdf->MultiCell($w, $lineHeight, $text, 0, 'C', false, 0);
     }
 
     /**
-     * Измеряет высоту текста при заданной ширине: переносит по словам и
-     * считает строки через getStringWidth(). Возвращает высоту в мм.
+     * Измеряет высоту текста: пословный перенос + запас 25% по ширине.
+     *
+     * GetStringWidth() может расходиться с реальной шириной глифов
+     * в MultiCell() (особенно на condensed-шрифтах с кириллицей),
+     * поэтому эффективная ширина строки берётся с запасом.
      *
      * @param TCPDF $pdf
      * @param string $text
-     * @param float  $maxWidthMm Максимальная ширина строки (мм)
-     * @param float  $fontSizePt Размер шрифта (pt)
+     * @param float  $maxWidthMm  Максимальная ширина строки (мм)
+     * @param float  $lineHeightMm Высота одной строки (мм)
      * @return float Высота текста (мм)
      */
-    private function measureTextHeight(TCPDF $pdf, string $text, float $maxWidthMm, float $fontSizePt): float
-    {
+    private function measureTextHeight(
+        TCPDF $pdf,
+        string $text,
+        float $maxWidthMm,
+        float $lineHeightMm
+    ): float {
+        // 25% запас компенсирует расхождение GetStringWidth и MultiCell
+        $effectiveWidth = $maxWidthMm / 1.25;
+
         $lines = 1;
         $currentLine = '';
 
-        // Разбиваем на слова с учётом явных переносов строк
         $segments = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($segments === false) {
             $segments = [$text];
         }
 
         foreach ($segments as $segment) {
-            // Явный перенос строки в сегменте
             $subParts = explode("\n", $segment);
             foreach ($subParts as $i => $part) {
                 if ($i > 0) {
@@ -278,8 +308,7 @@ class LabelPdfService
                 }
 
                 $testLine = $currentLine . $part;
-                if ($pdf->GetStringWidth($testLine, '', '', $fontSizePt) > $maxWidthMm) {
-                    // Не влезает — начинаем новую строку
+                if ($pdf->GetStringWidth($testLine) > $effectiveWidth) {
                     $lines++;
                     $currentLine = $part;
                 } else {
@@ -288,6 +317,7 @@ class LabelPdfService
             }
         }
 
-        return $lines * $fontSizePt * 0.3528;
+        return $lines * $lineHeightMm;
     }
+
 }
