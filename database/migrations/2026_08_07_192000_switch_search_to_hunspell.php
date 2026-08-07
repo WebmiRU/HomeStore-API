@@ -8,6 +8,27 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Create hunspell dictionary (requires ru_ru.affix + ru_ru.dict in
+        // PostgreSQL tsearch_data directory, mounted via docker-compose).
+        DB::statement("
+            CREATE TEXT SEARCH DICTIONARY IF NOT EXISTS russian_hunspell (
+                TEMPLATE = ispell,
+                DictFile = ru_ru,
+                AffFile = ru_ru,
+                StopWords = russian
+            )
+        ");
+        DB::statement("
+            CREATE TEXT SEARCH CONFIGURATION IF NOT EXISTS russian_hunspell (
+                COPY = russian
+            )
+        ");
+        DB::statement("
+            ALTER TEXT SEARCH CONFIGURATION russian_hunspell
+                ALTER MAPPING FOR word, hword, hword_part
+                WITH russian_hunspell, russian_stem
+        ");
+
         // Switch search_vector columns from 'russian' (Snowball stemmer)
         // to 'russian_hunspell' (ispell/hunspell dictionary) for better
         // inflectional normalization: keeps original word plus adds base form,
