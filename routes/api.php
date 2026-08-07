@@ -3,6 +3,7 @@
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\LabelListController;
 use App\Http\Controllers\LabelPresetController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Http\Request;
@@ -51,6 +52,14 @@ Route::prefix('label')->controller(LabelController::class)->group(function (): v
 });
 
 Route::prefix('label-preset')->controller(LabelPresetController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+Route::prefix('label-list')->controller(LabelListController::class)->group(function (): void {
     Route::get('/', 'index');
     Route::get('{model}', 'get');
     Route::post('/', 'post');
