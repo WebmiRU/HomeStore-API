@@ -9,11 +9,12 @@ use App\Models\Code;
 use App\Models\Item;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Str;
 
 class ItemController extends Controller
 {
-    public function index(): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(): ResourceCollection
     {
         return ItemResource::collection(
             Item::with(['code', 'store'])
