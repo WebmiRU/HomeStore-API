@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Searchable;
 use Illuminate\Database\Eloquent\Model;
 
 class Store extends Model
 {
+    use Searchable;
+
     protected $table = 'store';
 
     protected $fillable = [
