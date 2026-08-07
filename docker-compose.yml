@@ -36,8 +36,21 @@ services:
     ports:
       - "5432:5432"
 
+  garage:
+    image: dxflrs/garage:v1.0.1
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - ./garage.toml:/etc/garage.toml:ro
+    ports:
+      - "3900:3900"
+      - "3903:3903"
+    restart: unless-stopped
+
   redis:
     image: redis:alpine
 
 volumes:
   postgres-data:
+  garage-meta:
+  garage-data:

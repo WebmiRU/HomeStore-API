@@ -1,0 +1,17 @@
+# Garage S3-compatible object store — single-node config
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_mode = "none"
+
+rpc_bind_addr = "[::]:3901"
+rpc_secret = "f5392635ac3233c8566d51cdc8122f9623bee3e0281d242f54bf08aef746edb0"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+admin_token = "e42771b84c74b41444ccfc5c1f02f390"
