@@ -23,6 +23,15 @@ class StoreController extends Controller
         );
     }
 
+    public function all(): ResourceCollection
+    {
+        return StoreResource::collection(
+            Store::with(['code', 'parent'])
+                ->orderBy('id')
+                ->get()
+        );
+    }
+
     public function get(Store $model): StoreResource
     {
         return new StoreResource($model->load(['code', 'parent']));
