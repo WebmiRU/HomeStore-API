@@ -18,15 +18,14 @@ class SearchController extends Controller
 
         $words = explode(' ', $q);
 
-        // Build tsquery: prefix (:* ) only for words ≥ 5 chars to avoid
-        // short stems matching unrelated words (e.g. "кора" → stem "кор":*
-        // falsely matches "коробка" with stem "коробк").
+        // Build tsquery: prefix (:*) only for words ≥ 5 chars to avoid
+        // short stems matching unrelated words (e.g. "кора" matches "коробка").
         $tsqueryParts = array_map(
             fn(string $w): string => mb_strlen($w) >= 5 ? $w . ':*' : $w,
             $words,
         );
         $tsquery = DB::selectOne(
-            "SELECT to_tsquery('russian', ?) AS q",
+            "SELECT to_tsquery('russian_hunspell', ?) AS q",
             [implode(' | ', $tsqueryParts)]
         )->q;
 
@@ -39,7 +38,7 @@ class SearchController extends Controller
                 $query
                     ->whereRaw('search_vector @@ ?', [$tsquery]);
                 if ($useSimilarity) {
-                    $query->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                    $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
                 }
                 foreach ($words as $word) {
                     $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
@@ -53,7 +52,7 @@ class SearchController extends Controller
                         $query
                             ->whereRaw('search_vector @@ ?', [$tsquery]);
                         if ($useSimilarity) {
-                            $query->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                            $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
                         }
                         foreach ($words as $word) {
                             $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);

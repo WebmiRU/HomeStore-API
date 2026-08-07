@@ -1,0 +1,88 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        // Switch search_vector columns from 'russian' (Snowball stemmer)
+        // to 'russian_hunspell' (ispell/hunspell dictionary) for better
+        // inflectional normalization: keeps original word plus adds base form,
+        // e.g. коробка → {коробка, коробок} instead of just {коробк}.
+
+        // item
+        DB::statement('DROP INDEX IF EXISTS idx_item_search');
+        DB::statement('ALTER TABLE item DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE item ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian_hunspell', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('russian_hunspell', coalesce(title_print, '')), 'B')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_item_search ON item USING GIN (search_vector)');
+
+        // store
+        DB::statement('DROP INDEX IF EXISTS idx_store_search');
+        DB::statement('ALTER TABLE store DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE store ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian_hunspell', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('russian_hunspell', coalesce(title_print, '')), 'B')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_store_search ON store USING GIN (search_vector)');
+
+        // label_list
+        DB::statement('DROP INDEX IF EXISTS idx_label_list_search');
+        DB::statement('ALTER TABLE label_list DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE label_list ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian_hunspell', coalesce(title, '')), 'A')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_label_list_search ON label_list USING GIN (search_vector)');
+    }
+
+    public function down(): void
+    {
+        // Revert to Snowball stemmer
+
+        DB::statement('DROP INDEX IF EXISTS idx_item_search');
+        DB::statement('ALTER TABLE item DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE item ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('russian', coalesce(title_print, '')), 'B')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_item_search ON item USING GIN (search_vector)');
+
+        DB::statement('DROP INDEX IF EXISTS idx_store_search');
+        DB::statement('ALTER TABLE store DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE store ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('russian', coalesce(title_print, '')), 'B')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_store_search ON store USING GIN (search_vector)');
+
+        DB::statement('DROP INDEX IF EXISTS idx_label_list_search');
+        DB::statement('ALTER TABLE label_list DROP COLUMN IF EXISTS search_vector');
+        DB::statement("
+            ALTER TABLE label_list ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('russian', coalesce(title, '')), 'A')
+            ) STORED
+        ");
+        DB::statement('CREATE INDEX idx_label_list_search ON label_list USING GIN (search_vector)');
+    }
+};

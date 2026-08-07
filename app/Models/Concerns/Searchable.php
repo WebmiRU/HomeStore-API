@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\DB;
 trait Searchable
 {
     /**
-     * Full-text search using PostgreSQL tsvector with prefix matching,
-     * falling back to trigram similarity when the Russian stemmer produces
-     * different lexemes for related words (e.g. коробочка vs коробка),
+     * Full-text search using PostgreSQL tsvector with hunspell dictionary,
+     * falling back to trigram similarity when words have different base forms
+     * (e.g. цинковый vs оцинкованный),
      * and ILIKE substring matching for short queries (e.g. цинк in оцинкованный).
      *
      * The model must have a "search_vector" generated column.
-     * Requires pg_trgm extension enabled.
+     * Requires pg_trgm extension and russian_hunspell dictionary.
      */
     public function scopeSearch(Builder $query, string $q): Builder
     {
@@ -24,15 +24,14 @@ trait Searchable
 
         $words = explode(' ', $q);
 
-        // Build tsquery: prefix (:* ) only for words ≥ 5 chars to avoid
-        // short stems matching unrelated words (e.g. "кора" → stem "кор":*
-        // falsely matches "коробка" with stem "коробк").
+        // Build tsquery: prefix (:*) only for words ≥ 5 chars to avoid
+        // short stems matching unrelated words (e.g. "кора" matches "коробка").
         $tsqueryParts = array_map(
             fn(string $w): string => mb_strlen($w) >= 5 ? $w . ':*' : $w,
             $words,
         );
         $tsquery = DB::selectOne(
-            "SELECT to_tsquery('russian', ?) AS q",
+            "SELECT to_tsquery('russian_hunspell', ?) AS q",
             [implode(' | ', $tsqueryParts)]
         )->q;
 
@@ -41,12 +40,11 @@ trait Searchable
         return $query
             ->where(function (Builder $query) use ($tsquery, $q, $table, $words) {
                 $query
-                    // Primary: FTS with prefix matching
+                    // Primary: FTS with prefix matching (hunspell dictionary)
                     ->whereRaw("{$table}.search_vector @@ ?", [$tsquery]);
-                // Fallback: trigram similarity (only for queries ≥ 6 chars —
-                // short queries produce too many false positives, e.g. "корка" ≈ "коробка")
+                // Fallback: trigram similarity (only for queries ≥ 6 chars)
                 if (mb_strlen($q) >= 6) {
-                    $query->orWhereRaw("similarity({$table}.title, ?) > 0.2", [$q]);
+                    $query->orWhereRaw("similarity({$table}.title, ?) > 0.15", [$q]);
                 }
                 // Substring fallback: for short queries that trigrams miss
                 foreach ($words as $word) {
