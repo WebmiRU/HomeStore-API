@@ -22,22 +22,32 @@ trait Searchable
             return $query->whereRaw('1 = 0');
         }
 
-        // Build prefix tsquery with OR semantics: "короб болт" → "короб:* | болт:*"
+        $words = explode(' ', $q);
+
+        // Build tsquery: prefix (:* ) only for words ≥ 5 chars to avoid
+        // short stems matching unrelated words (e.g. "кора" → stem "кор":*
+        // falsely matches "коробка" with stem "коробк").
+        $tsqueryParts = array_map(
+            fn(string $w): string => mb_strlen($w) >= 5 ? $w . ':*' : $w,
+            $words,
+        );
         $tsquery = DB::selectOne(
             "SELECT to_tsquery('russian', ?) AS q",
-            [implode(':* | ', explode(' ', $q)) . ':*']
+            [implode(' | ', $tsqueryParts)]
         )->q;
 
         $table = $query->getModel()->getTable();
-        $words = explode(' ', $q);
 
         return $query
             ->where(function (Builder $query) use ($tsquery, $q, $table, $words) {
                 $query
                     // Primary: FTS with prefix matching
-                    ->whereRaw("{$table}.search_vector @@ ?", [$tsquery])
-                    // Fallback: trigram similarity on raw title
-                    ->orWhereRaw("similarity({$table}.title, ?) > 0.2", [$q]);
+                    ->whereRaw("{$table}.search_vector @@ ?", [$tsquery]);
+                // Fallback: trigram similarity (only for queries ≥ 6 chars —
+                // short queries produce too many false positives, e.g. "корка" ≈ "коробка")
+                if (mb_strlen($q) >= 6) {
+                    $query->orWhereRaw("similarity({$table}.title, ?) > 0.2", [$q]);
+                }
                 // Substring fallback: for short queries that trigrams miss
                 foreach ($words as $word) {
                     $query->orWhereRaw("{$table}.title ILIKE ?", ['%' . $word . '%']);

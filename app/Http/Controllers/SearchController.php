@@ -16,21 +16,31 @@ class SearchController extends Controller
             return response()->json(['data' => []]);
         }
 
-        // Build prefix tsquery with OR semantics: "короб болт" -> "короб:* | болт:*"
+        $words = explode(' ', $q);
+
+        // Build tsquery: prefix (:* ) only for words ≥ 5 chars to avoid
+        // short stems matching unrelated words (e.g. "кора" → stem "кор":*
+        // falsely matches "коробка" with stem "коробк").
+        $tsqueryParts = array_map(
+            fn(string $w): string => mb_strlen($w) >= 5 ? $w . ':*' : $w,
+            $words,
+        );
         $tsquery = DB::selectOne(
             "SELECT to_tsquery('russian', ?) AS q",
-            [implode(':* | ', explode(' ', $q)) . ':*']
+            [implode(' | ', $tsqueryParts)]
         )->q;
 
-        $words = explode(' ', $q);
+        $useSimilarity = mb_strlen($q) >= 6;
 
         $results = DB::query()
             ->selectRaw("'item' as type, id, title, title_print, ts_rank(search_vector, ?) as rank, similarity(title, ?) as sim", [$tsquery, $q])
             ->from('item')
-            ->where(function ($query) use ($tsquery, $q, $words) {
+            ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity) {
                 $query
-                    ->whereRaw('search_vector @@ ?', [$tsquery])
-                    ->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                    ->whereRaw('search_vector @@ ?', [$tsquery]);
+                if ($useSimilarity) {
+                    $query->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                }
                 foreach ($words as $word) {
                     $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
                 }
@@ -39,10 +49,12 @@ class SearchController extends Controller
                 DB::query()
                     ->selectRaw("'store' as type, id, title, title_print, ts_rank(search_vector, ?) as rank, similarity(title, ?) as sim", [$tsquery, $q])
                     ->from('store')
-                    ->where(function ($query) use ($tsquery, $q, $words) {
+                    ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity) {
                         $query
-                            ->whereRaw('search_vector @@ ?', [$tsquery])
-                            ->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                            ->whereRaw('search_vector @@ ?', [$tsquery]);
+                        if ($useSimilarity) {
+                            $query->orWhereRaw('similarity(title, ?) > 0.2', [$q]);
+                        }
                         foreach ($words as $word) {
                             $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
                         }
