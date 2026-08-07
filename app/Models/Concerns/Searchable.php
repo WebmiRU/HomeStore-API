@@ -35,16 +35,35 @@ trait Searchable
             [implode(' | ', $tsqueryParts)]
         )->q;
 
+        // Check if ALL query words are recognized by hunspell.
+        // If a word is not in the dictionary, it's likely a typo
+        // → use pure similarity for typo tolerance.
+        $allRecognized = DB::selectOne(
+            "SELECT bool_and(ts_lexize('russian_hunspell', word) IS NOT NULL) AS ok
+             FROM unnest(?::text[]) AS word",
+            ['{' . implode(',', $words) . '}']
+        )->ok;
+
         $table = $query->getModel()->getTable();
 
         return $query
-            ->where(function (Builder $query) use ($tsquery, $q, $table, $words) {
+            ->where(function (Builder $query) use ($tsquery, $q, $table, $words, $allRecognized) {
                 $query
                     // Primary: FTS with prefix matching (hunspell dictionary)
                     ->whereRaw("{$table}.search_vector @@ ?", [$tsquery]);
-                // Fallback: trigram similarity (only for queries ≥ 6 chars)
+                // Similarity fallback for derivational variants and typos
                 if (mb_strlen($q) >= 6) {
-                    $query->orWhereRaw("similarity({$table}.title, ?) > 0.15", [$q]);
+                    if ($allRecognized) {
+                        // Valid words: require ≥5 char common substring to avoid
+                        // false positives (e.g. "корочка" vs "коробка" share only "кор"=3).
+                        $query->orWhereRaw(
+                            "similarity({$table}.title, ?) > 0.15 AND {$table}.title ILIKE '%' || left(?, 5) || '%'",
+                            [$q, $q]
+                        );
+                    } else {
+                        // Likely a typo: pure similarity for tolerance
+                        $query->orWhereRaw("similarity({$table}.title, ?) > 0.15", [$q]);
+                    }
                 }
                 // Substring fallback: for short queries that trigrams miss
                 foreach ($words as $word) {
