@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('code', function (Blueprint $table) {
             $table->id();
-            $table->uuid('code')->unique();
+            $table->text('code')->unique();
             $table->unsignedBigInteger('item_id')->nullable();
             $table->unsignedBigInteger('store_id')->nullable();
             $table->timestamps();

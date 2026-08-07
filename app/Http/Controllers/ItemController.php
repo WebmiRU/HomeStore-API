@@ -17,15 +17,15 @@ class ItemController extends Controller
     public function index(): ResourceCollection
     {
         return ItemResource::collection(
-            Item::with(['code', 'store'])
+            Item::with(['code', 'store.parent'])
                 ->orderBy('id')
-                ->get()
+                ->paginate()
         );
     }
 
     public function get(Item $model): ItemResource
     {
-        return new ItemResource($model->load(['code', 'store']));
+        return new ItemResource($model->load(['code', 'store.parent']));
     }
 
     public function post(StoreItemRequest $request): JsonResponse
@@ -38,7 +38,7 @@ class ItemController extends Controller
             'item_id' => $item->id,
         ]);
 
-        return (new ItemResource($item->load(['code', 'store'])))
+        return (new ItemResource($item->load(['code', 'store.parent'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -47,7 +47,7 @@ class ItemController extends Controller
     {
         $model->update($request->validated());
 
-        return new ItemResource($model->load(['code', 'store']));
+        return new ItemResource($model->load(['code', 'store.parent']));
     }
 
     public function delete(Item $model): JsonResponse
