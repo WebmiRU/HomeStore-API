@@ -10,6 +10,7 @@ use App\Models\Item;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ItemController extends Controller
@@ -30,13 +31,16 @@ class ItemController extends Controller
 
     public function post(StoreItemRequest $request): JsonResponse
     {
-        $item = Item::create($request->validated());
+        $item = DB::transaction(function () use ($request) {
+            $item = Item::create($request->validated());
 
-        // Авто-создание кода (UUID) для нового item
-        Code::create([
-            'code'    => (string) Str::uuid(),
-            'item_id' => $item->id,
-        ]);
+            Code::create([
+                'code'    => (string) Str::uuid7(),
+                'item_id' => $item->id,
+            ]);
+
+            return $item;
+        });
 
         return (new ItemResource($item->load(['code', 'store.parent'])))
             ->response()

@@ -10,6 +10,7 @@ use App\Models\Store;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class StoreController extends Controller
@@ -39,12 +40,16 @@ class StoreController extends Controller
 
     public function post(StoreStoreRequest $request): JsonResponse
     {
-        $store = Store::create($request->validated());
+        $store = DB::transaction(function () use ($request) {
+            $store = Store::create($request->validated());
 
-        Code::create([
-            'code'     => (string) Str::uuid(),
-            'store_id' => $store->id,
-        ]);
+            Code::create([
+                'code'     => (string) Str::uuid7(),
+                'store_id' => $store->id,
+            ]);
+
+            return $store;
+        });
 
         return (new StoreResource($store->load(['code', 'parent'])))
             ->response()
