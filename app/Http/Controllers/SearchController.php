@@ -41,7 +41,19 @@ class SearchController extends Controller
         )->ok;
 
         $results = DB::query()
-            ->selectRaw("'item' as type, id, title, title_print, ts_rank(search_vector, ?) as rank, similarity(title, ?) as sim", [$tsquery, $q])
+            ->selectRaw("
+                'item' as type,
+                ts_rank(search_vector, ?) as rank,
+                similarity(title, ?) as sim,
+                json_build_object(
+                    'id', id,
+                    'title', title,
+                    'title_print', title_print,
+                    'store_id', store_id,
+                    'created_at', created_at,
+                    'updated_at', updated_at
+                ) as payload
+            ", [$tsquery, $q])
             ->from('item')
             ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
                 $query
@@ -62,7 +74,19 @@ class SearchController extends Controller
             })
             ->unionAll(
                 DB::query()
-                    ->selectRaw("'store' as type, id, title, title_print, ts_rank(search_vector, ?) as rank, similarity(title, ?) as sim", [$tsquery, $q])
+                    ->selectRaw("
+                        'store' as type,
+                        ts_rank(search_vector, ?) as rank,
+                        similarity(title, ?) as sim,
+                        json_build_object(
+                            'id', id,
+                            'title', title,
+                            'title_print', title_print,
+                            'parent_id', parent_id,
+                            'created_at', created_at,
+                            'updated_at', updated_at
+                        ) as payload
+                    ", [$tsquery, $q])
                     ->from('store')
                     ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
                         $query
@@ -84,7 +108,8 @@ class SearchController extends Controller
             )
             ->orderBy('rank', 'desc')
             ->orderBy('sim', 'desc')
-            ->get();
+            ->get()
+            ->map(fn($row) => tap($row, fn($r) => $r->payload = json_decode($r->payload)));
 
         return response()->json(['data' => $results]);
     }
