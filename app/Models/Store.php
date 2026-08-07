@@ -10,6 +10,7 @@ class Store extends Model
 
     protected $fillable = [
         'title',
+        'title_print',
         'parent_id',
     ];
 

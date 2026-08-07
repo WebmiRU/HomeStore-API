@@ -16,7 +16,7 @@ class StoreResource extends JsonResource
             'parent_id'   => $this->parent_id,
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
-            'parents'     => $this->ancestors(),
+            'parents'     => array_reverse($this->ancestors()),
         ];
     }
 }

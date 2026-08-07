@@ -30,6 +30,10 @@ Route::prefix('code')->controller(CodeController::class)->group(function (): voi
 
 Route::prefix('store')->controller(StoreController::class)->group(function (): void {
     Route::get('/', 'index');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
 });
 
 Route::prefix('item')->controller(ItemController::class)->group(function (): void {
