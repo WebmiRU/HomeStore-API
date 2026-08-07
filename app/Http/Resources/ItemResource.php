@@ -20,7 +20,13 @@ class ItemResource extends JsonResource
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
-            'store'   => $this->whenLoaded('store', fn() => new StoreResource($this->store)),
+            'store'   => $this->whenLoaded('store', function () {
+                $chain = [$this->store->getAttributes()];
+                foreach (array_reverse($this->store->ancestors()) as $ancestor) {
+                    $chain[] = $ancestor;
+                }
+                return $chain;
+            }),
         ];
     }
 }
