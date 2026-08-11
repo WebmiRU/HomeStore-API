@@ -64,10 +64,16 @@ Route::prefix('label-preset')->controller(LabelPresetController::class)->group(f
 
 Route::prefix('label-list')->controller(LabelListController::class)->group(function (): void {
     Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{labelList}/generate', 'generate');
     Route::get('{model}', 'get');
     Route::post('/', 'post');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
+    Route::post('{labelList}/item/{item}', 'attachItem');
+    Route::delete('{labelList}/item/{item}', 'detachItem');
+    Route::post('{labelList}/store/{store}', 'attachStore');
+    Route::delete('{labelList}/store/{store}', 'detachStore');
 });
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
