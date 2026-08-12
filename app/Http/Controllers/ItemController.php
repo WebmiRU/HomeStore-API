@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ItemController extends Controller
 {
@@ -32,12 +33,43 @@ class ItemController extends Controller
     public function post(StoreItemRequest $request): JsonResponse
     {
         $item = DB::transaction(function () use ($request) {
-            $item = Item::create($request->validated());
+            $data = $request->validated();
+            $code = isset($data['code']) ? trim((string) $data['code']) : '';
+            unset($data['code']);
 
-            Code::create([
-                'code'    => (string) Str::uuid7(),
-                'item_id' => $item->id,
-            ]);
+            $item = Item::create($data);
+
+            if ($code === '') {
+                // Код не передан — генерируем UUID по умолчанию
+                Code::create([
+                    'code'    => (string) Str::uuid7(),
+                    'item_id' => $item->id,
+                ]);
+            } else {
+                $existing = Code::where('code', $code)->first();
+
+                if ($existing) {
+                    if ($existing->item_id !== null) {
+                        throw ValidationException::withMessages([
+                            'code' => ['Код уже привязан к другому предмету'],
+                        ]);
+                    }
+
+                    if ($existing->store_id !== null) {
+                        throw ValidationException::withMessages([
+                            'code' => ['Код уже привязан к хранилищу'],
+                        ]);
+                    }
+
+                    // Код существует, но ни к чему не привязан — привязываем к товару
+                    $existing->update(['item_id' => $item->id]);
+                } else {
+                    Code::create([
+                        'code'    => $code,
+                        'item_id' => $item->id,
+                    ]);
+                }
+            }
 
             return $item;
         });
@@ -49,9 +81,62 @@ class ItemController extends Controller
 
     public function put(UpdateItemRequest $request, Item $model): ItemResource
     {
-        $model->update($request->validated());
+        DB::transaction(function () use ($request, $model) {
+            $data = $request->validated();
+            $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
+            unset($data['code']);
+
+            $model->update($data);
+
+            if ($code === null) {
+                // Поле «code» не передано — связку не трогаем
+                return;
+            }
+
+            if ($code === '') {
+                // Отвязываем код от товара
+                Code::where('item_id', $model->id)->delete();
+                return;
+            }
+
+            $this->bindCodeToItem($model, $code);
+        });
 
         return new ItemResource($model->load(['code', 'store.parent']));
+    }
+
+    private function bindCodeToItem(Item $item, string $code): void
+    {
+        $existing = Code::where('code', $code)->first();
+
+        if ($existing) {
+            if ($existing->item_id !== null && $existing->item_id !== $item->id) {
+                throw ValidationException::withMessages([
+                    'code' => ['Код уже привязан к другому предмету'],
+                ]);
+            }
+
+            if ($existing->store_id !== null) {
+                throw ValidationException::withMessages([
+                    'code' => ['Код уже привязан к хранилищу'],
+                ]);
+            }
+
+            if ($existing->item_id === $item->id) {
+                // Код уже привязан к этому товару
+                return;
+            }
+
+            // «Осиротевший» код — привязываем к товару
+            Code::where('item_id', $item->id)->delete();
+            $existing->update(['item_id' => $item->id]);
+
+            return;
+        }
+
+        // Новый код — заменяем текущую связку товара
+        Code::where('item_id', $item->id)->delete();
+        Code::create(['code' => $code, 'item_id' => $item->id]);
     }
 
     public function delete(Item $model): JsonResponse

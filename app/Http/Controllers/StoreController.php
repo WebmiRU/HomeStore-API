@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class StoreController extends Controller
 {
@@ -41,12 +42,20 @@ class StoreController extends Controller
     public function post(StoreStoreRequest $request): JsonResponse
     {
         $store = DB::transaction(function () use ($request) {
-            $store = Store::create($request->validated());
+            $data = $request->validated();
+            $code = isset($data['code']) ? trim((string) $data['code']) : '';
+            unset($data['code']);
 
-            Code::create([
-                'code'     => (string) Str::uuid7(),
-                'store_id' => $store->id,
-            ]);
+            $store = Store::create($data);
+
+            if ($code === '') {
+                Code::create([
+                    'code'     => (string) Str::uuid7(),
+                    'store_id' => $store->id,
+                ]);
+            } else {
+                $this->bindCodeToStore($store, $code);
+            }
 
             return $store;
         });
@@ -58,9 +67,62 @@ class StoreController extends Controller
 
     public function put(UpdateStoreRequest $request, Store $model): StoreResource
     {
-        $model->update($request->validated());
+        DB::transaction(function () use ($request, $model) {
+            $data = $request->validated();
+            $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
+            unset($data['code']);
+
+            $model->update($data);
+
+            if ($code === null) {
+                // Поле «code» не передано — связку не трогаем
+                return;
+            }
+
+            if ($code === '') {
+                // Отвязываем код от хранилища
+                Code::where('store_id', $model->id)->delete();
+                return;
+            }
+
+            $this->bindCodeToStore($model, $code);
+        });
 
         return new StoreResource($model->load(['code', 'parent']));
+    }
+
+    private function bindCodeToStore(Store $store, string $code): void
+    {
+        $existing = Code::where('code', $code)->first();
+
+        if ($existing) {
+            if ($existing->store_id !== null && $existing->store_id !== $store->id) {
+                throw ValidationException::withMessages([
+                    'code' => ['Код уже привязан к другому хранилищу'],
+                ]);
+            }
+
+            if ($existing->item_id !== null) {
+                throw ValidationException::withMessages([
+                    'code' => ['Код уже привязан к предмету'],
+                ]);
+            }
+
+            if ($existing->store_id === $store->id) {
+                // Код уже привязан к этому хранилищу
+                return;
+            }
+
+            // «Осиротевший» код — привязываем к хранилищу
+            Code::where('store_id', $store->id)->delete();
+            $existing->update(['store_id' => $store->id]);
+
+            return;
+        }
+
+        // Новый код — заменяем текущую связку хранилища
+        Code::where('store_id', $store->id)->delete();
+        Code::create(['code' => $code, 'store_id' => $store->id]);
     }
 
     public function delete(Store $model): JsonResponse

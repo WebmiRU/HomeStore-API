@@ -17,7 +17,7 @@ class StoreResource extends JsonResource
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
             'parents'     => array_reverse($this->ancestors()),
-            'code'        => $this->whenLoaded('code', fn () => $this->code->code),
+            'code'        => $this->whenLoaded('code', fn () => $this->code?->code),
         ];
     }
 }

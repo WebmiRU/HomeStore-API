@@ -17,6 +17,7 @@ class StoreStoreRequest extends FormRequest
             'title'       => ['required', 'string', 'max:500'],
             'title_print' => ['nullable', 'string', 'max:500'],
             'parent_id'   => ['nullable', 'integer', 'exists:store,id'],
+            'code'        => ['nullable', 'string', 'min:8', 'max:256'],
         ];
     }
 }

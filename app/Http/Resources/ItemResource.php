@@ -11,7 +11,7 @@ class ItemResource extends JsonResource
     {
         return [
             'type'    => 'item',
-            'code'    => $this->whenLoaded('code', fn() => $this->code->code),
+            'code'    => $this->whenLoaded('code', fn() => $this->code?->code),
             'payload' => [
                 'id'          => $this->id,
                 'title'       => $this->title,
