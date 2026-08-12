@@ -18,6 +18,7 @@ class StoreItemRequest extends FormRequest
             'title_print' => ['nullable', 'string', 'max:500'],
             'store_id'    => ['nullable', 'integer', 'exists:store,id'],
             'code'        => ['nullable', 'string', 'min:8', 'max:256'],
+            'quantity'    => ['nullable', 'integer'],
         ];
     }
 }

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('title');
             $table->text('title_print')->nullable();
             $table->unsignedBigInteger('store_id')->nullable();
+            $table->bigInteger('quantity')->nullable();
             $table->timestamps();
             $table->foreign('store_id')->references('id')->on('store')->cascadeOnDelete()->cascadeOnUpdate();
         });

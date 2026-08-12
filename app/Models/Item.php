@@ -15,7 +15,15 @@ class Item extends Model
         'title',
         'title_print',
         'store_id',
+        'quantity',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'integer',
+        ];
+    }
 
     public function code()
     {

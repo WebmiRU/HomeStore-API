@@ -10,8 +10,12 @@ return new class extends Migration
     {
         // Create hunspell dictionary (requires ru_ru.affix + ru_ru.dict in
         // PostgreSQL tsearch_data directory, mounted via docker-compose).
+        // Text-search objects are not dropped by migrate:fresh, so drop first
+        // to make the migration idempotent.
+        DB::statement('DROP TEXT SEARCH CONFIGURATION IF EXISTS russian_hunspell');
+        DB::statement('DROP TEXT SEARCH DICTIONARY IF EXISTS russian_hunspell');
         DB::statement("
-            CREATE TEXT SEARCH DICTIONARY IF NOT EXISTS russian_hunspell (
+            CREATE TEXT SEARCH DICTIONARY russian_hunspell (
                 TEMPLATE = ispell,
                 DictFile = ru_ru,
                 AffFile = ru_ru,
@@ -19,7 +23,7 @@ return new class extends Migration
             )
         ");
         DB::statement("
-            CREATE TEXT SEARCH CONFIGURATION IF NOT EXISTS russian_hunspell (
+            CREATE TEXT SEARCH CONFIGURATION russian_hunspell (
                 COPY = russian
             )
         ");

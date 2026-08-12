@@ -17,6 +17,7 @@ class ItemResource extends JsonResource
                 'title'       => $this->title,
                 'title_print' => $this->title_print,
                 'store_id'    => $this->store_id,
+                'quantity'    => $this->quantity,
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
