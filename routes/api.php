@@ -5,6 +5,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\LabelListController;
 use App\Http\Controllers\LabelPresetController;
+use App\Http\Controllers\OperationController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Http\Request;
@@ -31,6 +32,10 @@ Route::get('/search', [SearchController::class, 'search']);
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {
     Route::get('/', 'index');
     Route::get('search', 'search');
+});
+
+Route::prefix('operation')->controller(OperationController::class)->group(function (): void {
+    Route::post('/', 'store');
 });
 
 Route::prefix('store')->controller(StoreController::class)->group(function (): void {
