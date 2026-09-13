@@ -7,16 +7,13 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('code', function (Blueprint $table) {
             $table->id();
-            $table->text('code')->unique();
-            $table->unsignedBigInteger('item_id')->nullable();
-            $table->unsignedBigInteger('store_id')->nullable();
+            $table->text('code')->unique('code_code_unique');
+            $table->unsignedBigInteger('item_id')->nullable()->index();
+            $table->unsignedBigInteger('store_id')->nullable()->index();
             $table->timestamps();
 
             $table->foreign('item_id')
@@ -35,9 +32,6 @@ return new class extends Migration
         DB::statement('ALTER TABLE "code" ADD CONSTRAINT code_xor_check CHECK (store_id IS NULL OR item_id IS NULL)');
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('code');

@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -10,9 +11,16 @@ return new class extends Migration
     {
         Schema::create('label_list', function (Blueprint $table) {
             $table->id();
-            $table->string('title')->unique();
+            $table->string('title', 255)->unique();
             $table->foreignId('label_preset_id')->constrained('label_preset')->cascadeOnDelete();
             $table->timestamps();
+
+            // Full-text search vector
+            $table->tsvector('search_vector')
+                ->generatedAlwaysAs(
+                    DB::raw("setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::character varying)::text), 'A'::\"char\")")
+                )
+                ->stored();
         });
 
         Schema::create('label_list_m2m_item', function (Blueprint $table) {

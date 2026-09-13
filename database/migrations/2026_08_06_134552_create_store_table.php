@@ -6,16 +6,13 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('store', function (Blueprint $table) {
             $table->id();
             $table->text('title');
             $table->text('title_print')->nullable();
-            $table->unsignedBigInteger('parent_id')->nullable()->index();
+            $table->unsignedBigInteger('parent_id')->nullable()->index('store_parent_id_index');
             $table->timestamps();
 
             $table->foreign('parent_id')
@@ -26,9 +23,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('store');
