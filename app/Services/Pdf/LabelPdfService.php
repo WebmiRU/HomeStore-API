@@ -250,7 +250,8 @@ class LabelPdfService
             $wrapResult = $this->wrapText($pdf, $text, $w);
             $textHeight = $wrapResult['lines'] * $lineHeight;
 
-            if ($textHeight <= $h) {
+            // 0.5mm safety margin — MultiCell рендерится чуть выше lines * lineHeight
+            if ($textHeight <= $h - 0.5) {
                 $offsetY = ($h - $textHeight) / 2;
                 $pdf->SetXY($x, $y + $offsetY);
                 $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
@@ -262,7 +263,8 @@ class LabelPdfService
         $pdf->SetFont($fontFamily, '', $sizeMin);
         $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
         $wrapResult = $this->wrapText($pdf, $text, $w);
-        $offsetY = ($h - $wrapResult['lines'] * $lineHeight) / 2;
+        $textHeight = $wrapResult['lines'] * $lineHeight;
+        $offsetY = ($h - $textHeight) / 2;
         $pdf->SetXY($x, $y + max(0, $offsetY));
         $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
     }
@@ -281,8 +283,8 @@ class LabelPdfService
      */
     private function wrapText(TCPDF $pdf, string $text, float $maxWidthMm): array
     {
-        // 25% запас компенсирует расхождение GetStringWidth и MultiCell
-        $effectiveWidth = $maxWidthMm / 1.25;
+        // 10% запас компенсирует расхождение GetStringWidth и MultiCell
+        $effectiveWidth = $maxWidthMm / 1.10;
 
         // Разбиваем на слова
         $words = preg_split('/\s+/u', $text);
