@@ -18,11 +18,10 @@ return new class extends Migration
 
         // Create search_vector as a proper generated column
         // (Laravel's tsvector() builder doesn't properly handle generated columns)
-        DB::statement(
-            "ALTER TABLE label_list ADD COLUMN search_vector tsvector NOT NULL GENERATED ALWAYS AS ("
-            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::" . "\"char\" . ")"
-            . ") STORED"
-        );
+        $sql = 'ALTER TABLE label_list ADD COLUMN search_vector tsvector NOT NULL GENERATED ALWAYS AS ('
+            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\")"
+            . ') STORED';
+        DB::statement($sql);
 
         Schema::create('label_list_m2m_item', function (Blueprint $table) {
             $table->id();
