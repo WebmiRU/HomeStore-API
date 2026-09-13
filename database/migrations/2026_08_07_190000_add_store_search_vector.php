@@ -16,8 +16,8 @@ return new class extends Migration
         );
         DB::statement(
             "ALTER TABLE store ADD COLUMN search_vector tsvector NOT NULL GENERATED ALWAYS AS ("
-            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::char) "
-            . "|| setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title_print, ''::text)), 'B'::char)"
+            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::" . "\"char\" . ") "
+            . "|| setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title_print, ''::text)), 'B'::" . "\"char\" . ")"
             . ") STORED"
         );
 

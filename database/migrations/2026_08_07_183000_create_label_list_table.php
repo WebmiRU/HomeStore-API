@@ -14,14 +14,15 @@ return new class extends Migration
             $table->string('title', 255)->unique();
             $table->foreignId('label_preset_id')->constrained('label_preset')->cascadeOnDelete();
             $table->timestamps();
-
-            // Full-text search vector
-            $table->tsvector('search_vector')
-                ->generatedAlwaysAs(
-                    DB::raw("setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::character varying)::text), 'A'::\"char\")")
-                )
-                ->stored();
         });
+
+        // Create search_vector as a proper generated column
+        // (Laravel's tsvector() builder doesn't properly handle generated columns)
+        DB::statement(
+            "ALTER TABLE label_list ADD COLUMN search_vector tsvector NOT NULL GENERATED ALWAYS AS ("
+            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::" . "\"char\" . ")"
+            . ") STORED"
+        );
 
         Schema::create('label_list_m2m_item', function (Blueprint $table) {
             $table->id();

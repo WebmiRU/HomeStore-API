@@ -9,13 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('item', function (Blueprint $table) {
-            $table->tsvector('search_vector')
-                ->generatedAlwaysAs(
-                    DB::raw("setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\") || setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title_print, ''::text)), 'B'::\"char\")")
-                )
-                ->stored();
-        });
+        DB::statement(
+            "ALTER TABLE item DROP COLUMN IF EXISTS search_vector"
+        );
+        DB::statement(
+            "ALTER TABLE item ADD COLUMN search_vector tsvector NOT NULL GENERATED ALWAYS AS ("
+            . "setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title, ''::text)), 'A'::char) "
+            . "|| setweight(to_tsvector('russian_hunspell'::regconfig, COALESCE(title_print, ''::text)), 'B'::char)"
+            . ") STORED"
+        );
 
         DB::statement('CREATE INDEX idx_item_search ON item USING gin (search_vector)');
     }
