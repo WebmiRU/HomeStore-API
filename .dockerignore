@@ -1,0 +1,9 @@
+.git
+vendor
+node_modules
+storage/logs/*
+storage/framework/*
+.env
+*.log
+.DS_Store
+.gigacode

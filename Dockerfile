@@ -1,5 +1,25 @@
 # Stage 1: Build dependencies
-FROM composer:latest AS composer
+FROM php:8.5-cli-alpine AS composer
+
+RUN apk add --no-cache \
+    git \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    postgresql16-dev \
+    zip \
+    oniguruma-dev
+
+RUN docker-php-ext-install \
+    pdo_pgsql \
+    pgsql \
+    pdo_mysql \
+    mbstring \
+    bcmath \
+    gd \
+    zip
+
+WORKDIR /app
 
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --optimize-autoloader --no-scripts
@@ -10,19 +30,13 @@ FROM php:8.5-fpm-alpine
 RUN apk add --no-cache \
     nginx \
     postgresql16 \
+    postgresql16-dev \
     supervisor \
     && rm -rf /var/cache/apk/*
 
-RUN sed -i 's/;daemonize\s*=.*/daemonize = no/' /etc/php8/conf.d\/php-fpm.conf \
+RUN echo "daemonize = no" > /usr/local/etc/php-fpm.d/www-docker.conf \
     && mkdir -p /var/run/php \
     && mkdir -p /var/log/supervisor
-
-RUN useradd \
-    --uid 1000 \
-    --create-home \
-    --home-dir /home/dev \
-    --shell /bin/bash \
-    dev
 
 # Install PHP extensions
 RUN docker-php-ext-install \
