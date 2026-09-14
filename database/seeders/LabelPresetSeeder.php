@@ -9,6 +9,10 @@ class LabelPresetSeeder extends Seeder
 {
     public function run(): void
     {
+        // Roboto Condensed Bold не входит в сгенерированные TCPDF-шрифты (tc-lib-pdf-font),
+        // поэтому используем ближайший доступный аналог с поддержкой кириллицы.
+        $fontId = DB::table('font')->where('key', 'dejavusanscondensedb')->value('id');
+
         $presets = [
             [
                 'title'               => 'Лоток 1л',
@@ -27,7 +31,7 @@ class LabelPresetSeeder extends Seeder
                 'barcode_position'    => 'left',
                 'barcode_text_gap'    => 2.0,
                 'barcode_size'        => 13.0,
-                'font_id'             => 69,
+                'font_id'             => $fontId,
                 'font_size_min'       => 5.0,
                 'font_size_max'       => 24.0,
                 'font_size_step'      => 0.5,
@@ -50,7 +54,7 @@ class LabelPresetSeeder extends Seeder
                 'barcode_position'    => 'left',
                 'barcode_text_gap'    => 2.0,
                 'barcode_size'        => 13.0,
-                'font_id'             => 69,
+                'font_id'             => $fontId,
                 'font_size_min'       => 5.0,
                 'font_size_max'       => 24.0,
                 'font_size_step'      => 0.5,
