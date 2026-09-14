@@ -1,0 +1,73 @@
+stages:
+  - build
+  - deploy
+  - update
+
+variables:
+  PROJECT_NAME: api
+  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  KUBE_NAMESPACE: home-store
+  KUBE_DEPLOYMENT: api-app
+
+# Skip pipeline for non-code changes
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# Cache composer dependencies
+cache: &composer_cache
+  key:
+    files:
+      - composer.lock
+  paths:
+    - vendor/
+    - .composer/cache/
+
+# Build stage: build and push Docker image
+build:
+  stage: build
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  before_script:
+    - docker info
+  script:
+    - echo "Building image for $CI_COMMIT_BRANCH ($CI_COMMIT_SHORT_SHA)"
+    - docker build
+        --build-arg APP_ENV=$CI_COMMIT_BRANCH
+        -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+        -t $IMAGE_NAME:dev
+        -f Dockerfile
+        .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+    - if [ "$CI_COMMIT_BRANCH" = "dev" ] || [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker push $IMAGE_NAME:dev;
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+
+# Deploy to k3s
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:1.31
+  before_script:
+    - mkdir -p /root/.kube
+    - echo "$KUBE_CONFIG" > /root/.kube/config
+  script:
+    - echo "Deploying $IMAGE_NAME:$CI_COMMIT_SHORT_SHA to $KUBE_NAMESPACE"
+    - kubectl set image deployment/$KUBE_DEPLOYMENT \
+        $KUBE_DEPLOYMENT=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA \
+        -n $KUBE_NAMESPACE
+    - kubectl rollout status deployment/$KUBE_DEPLOYMENT \
+        -n $KUBE_NAMESPACE --timeout=300s
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
