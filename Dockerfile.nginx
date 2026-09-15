@@ -1,6 +1,9 @@
 FROM nginx:alpine
 
-COPY .kube/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY . /var/www/html
+RUN ln -sfn /var/www/html/storage/app/public /var/www/html/public/storage
+
+COPY .kube/nginx/kube.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

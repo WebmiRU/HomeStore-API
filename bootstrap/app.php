@@ -14,10 +14,13 @@ use Illuminate\Support\Facades\Route;
 | TCPDF 7.x uses tc-lib-pdf-font for font handling. By default it resolves
 | the font path relative to the tcpdf package directory, which is incorrect
 | when installed as a Composer dependency. We override it to point to the
-| correct location where font JSON files were generated.mp
+| correct location where font JSON files are shipped.
 |
-| Fonts are built by running:
-|   cd vendor/tecnickcom/tc-lib-pdf-font && make fonts
+| The generated fonts are committed in resources/pdf/fonts and copied into
+| the vendor tree at image build time. To regenerate after a tc-lib-pdf-font
+| upgrade run:
+|   vendor/tecnickcom/tc-lib-pdf-font/bin/build_fonts.sh (or `make fonts`)
+| and update resources/pdf/fonts.
 */
 if (!defined('K_PATH_FONTS')) {
     $fontsPath = realpath(__DIR__ . '/../vendor/tecnickcom/tc-lib-pdf-font/target/fonts/');

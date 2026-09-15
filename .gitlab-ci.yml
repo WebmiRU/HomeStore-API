@@ -1,13 +1,12 @@
 stages:
   - build
   - deploy
-  - update
 
 variables:
-  PROJECT_NAME: api
-  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  PHP_IMAGE: $CI_REGISTRY_IMAGE
+  WEB_IMAGE: $CI_REGISTRY_IMAGE-web
+  TAG: $CI_COMMIT_SHORT_SHA
   KUBE_NAMESPACE: home-store
-  KUBE_DEPLOYMENT: api-app
 
 # Skip pipeline for non-code changes
 workflow:
@@ -27,8 +26,8 @@ cache: &composer_cache
     - vendor/
     - .composer/cache/
 
-# Build stage: build and push Docker image
-build:
+# Build stage: build and push php-fpm (Dockerfile) and nginx (Dockerfile.nginx) images
+build-php:
   stage: build
   image: docker:24.0
   services:
@@ -36,17 +35,37 @@ build:
   before_script:
     - docker info
   script:
-    - echo "Building image for $CI_COMMIT_BRANCH ($CI_COMMIT_SHORT_SHA)"
+    - echo "Building php image for $CI_COMMIT_BRANCH ($TAG)"
     - docker build
-        --build-arg APP_ENV=$CI_COMMIT_BRANCH
-        -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
-        -t $IMAGE_NAME:dev
+        -t $PHP_IMAGE:$TAG
+        -t $PHP_IMAGE:$CI_COMMIT_BRANCH
         -f Dockerfile
         .
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+    - docker push $PHP_IMAGE:$TAG
     - if [ "$CI_COMMIT_BRANCH" = "dev" ] || [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker push $IMAGE_NAME:dev;
+        docker push $PHP_IMAGE:$CI_COMMIT_BRANCH;
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+
+build-web:
+  stage: build
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  script:
+    - docker build
+        -t $WEB_IMAGE:$TAG
+        -t $WEB_IMAGE:$CI_COMMIT_BRANCH
+        -f Dockerfile.nginx
+        .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $WEB_IMAGE:$TAG
+    - if [ "$CI_COMMIT_BRANCH" = "dev" ] || [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker push $WEB_IMAGE:$CI_COMMIT_BRANCH;
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
@@ -61,12 +80,11 @@ deploy:
     - mkdir -p /root/.kube
     - echo "$KUBE_CONFIG" > /root/.kube/config
   script:
-    - echo "Deploying $IMAGE_NAME:$CI_COMMIT_SHORT_SHA to $KUBE_NAMESPACE"
-    - kubectl set image deployment/$KUBE_DEPLOYMENT \
-        $KUBE_DEPLOYMENT=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA \
-        -n $KUBE_NAMESPACE
-    - kubectl rollout status deployment/$KUBE_DEPLOYMENT \
-        -n $KUBE_NAMESPACE --timeout=300s
+    - echo "Deploying $PHP_IMAGE:$TAG / $WEB_IMAGE:$TAG to $KUBE_NAMESPACE"
+    - kubectl set image deployment/api-app api-app=$PHP_IMAGE:$TAG -n $KUBE_NAMESPACE
+    - kubectl rollout status deployment/api-app -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl set image deployment/api-web api-web=$WEB_IMAGE:$TAG -n $KUBE_NAMESPACE
+    - kubectl rollout status deployment/api-web -n $KUBE_NAMESPACE --timeout=300s
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
     - if: $CI_COMMIT_BRANCH == "main"
