@@ -43,7 +43,10 @@
 ├── www-deployment.yaml   # Deployment www (Nuxt)
 ├── www-service.yaml      # Service для www
 ├── ingress.yaml          # Ingress для маршрутизации трафика
+├── php/
+│   └── Dockerfile        # php-fpm образ (Laravel), :9000
 ├── nginx/
+│   ├── Dockerfile        # nginx образ (статика + proxy на php-fpm), :80
 │   ├── default.conf      # Конфиг nginx для docker-compose (fastcgi → app:9000)
 │   └── kube.conf         # Конфиг nginx для Kubernetes (fastcgi → api-app:9000)
 └── README.md
@@ -51,10 +54,10 @@
 
 ## Образы
 
-| Слой  | Dockerfile       | Экспонирует | Назначение              |
-|-------|------------------|-------------|-------------------------|
-| api   | `Dockerfile`     | 9000        | php-fpm (Laravel)       |
-| web   | `Dockerfile.nginx` | 80        | nginx (статика + proxy на php-fpm) |
+| Слой  | Dockerfile            | Экспонирует | Назначение              |
+|-------|-----------------------|-------------|-------------------------|
+| api   | `.kube/php/Dockerfile`    | 9000     | php-fpm (Laravel)       |
+| web   | `.kube/nginx/Dockerfile`  | 80       | nginx (статика + proxy на php-fpm) |
 
 Nginx-образ содержит копию приложения (папка `public/`), чтобы обслуживать
 статику самостоятельно, PHP обрабатывается через FastCGI на сервис `api-app:9000`.
@@ -84,8 +87,8 @@ kubectl apply -f ingress.yaml
 ### 2. Собрать и загрузить Docker образы
 
 ```bash
-docker build -t home-store-api:latest -f Dockerfile .
-docker build -t home-store-web:latest -f Dockerfile.nginx .
+docker build -t home-store-api:latest -f .kube/php/Dockerfile .
+docker build -t home-store-web:latest -f .kube/nginx/Dockerfile .
 ```
 
 Для minikube:

@@ -9,7 +9,7 @@ cd /home/ewolf/prjs/home_store/api
 ## 1. PHP-FPM образ (контейнер API, Laravel)
 
 ```bash
-docker build --progress=plain -t home-store-api:latest -f Dockerfile .
+docker build --progress=plain -t home-store-api:latest -f .kube/php/Dockerfile .
 ```
 
 ~15-20 минут (компиляция gd + composer install).
@@ -22,12 +22,12 @@ Debian-пакеты качаются с зеркала Яндекса по ум�
 docker build \
   --build-arg DEBIAN_MIRROR=https://deb.debian.org/debian \
   --build-arg DEBIAN_SECURITY_MIRROR=https://deb.debian.org/debian-security \
-  -t home-store-api:latest -f Dockerfile .
+-t home-store-api:latest -f .kube/php/Dockerfile .
 ```
 
 ### Кэширование composer-пакетов
 
-В `Dockerfile` composer-зависимости ставятся до копирования кода:
+В `.kube/php/Dockerfile` composer-зависимости ставятся до копирования кода:
 слой с `composer install` переиспользуется, пока `composer.json`/`composer.lock`
 не изменились (любые правки кода его не трогают).
 
@@ -54,7 +54,7 @@ cp -a vendor/tecnickcom/tc-lib-pdf-font/target/fonts resources/pdf/fonts
 Принудительно снести кэш (пересобрать зависимости):
 
 ```bash
-docker build --no-cache -t home-store-api:latest -f Dockerfile .
+docker build --no-cache -t home-store-api:latest -f .kube/php/Dockerfile .
 ```
 
 ### Починка «висит на codeload.github.com / tc-font-mirror»
@@ -67,7 +67,7 @@ docker build --no-cache -t home-store-api:latest -f Dockerfile .
 ## 2. Nginx образ (веб-слой, статика + proxy на php-fpm)
 
 ```bash
-docker build -t home-store-web:latest -f Dockerfile.nginx .
+docker build -t home-store-web:latest -f .kube/nginx/Dockerfile .
 ```
 
 ## 3. Проверка (опционально)

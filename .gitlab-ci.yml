@@ -26,7 +26,7 @@ cache: &composer_cache
     - vendor/
     - .composer/cache/
 
-# Build stage: build and push php-fpm (Dockerfile) and nginx (Dockerfile.nginx) images
+# Build stage: build and push php-fpm and nginx images
 build-php:
   stage: build
   image: docker:24.0
@@ -39,7 +39,7 @@ build-php:
     - docker build
         -t $PHP_IMAGE:$TAG
         -t $PHP_IMAGE:$CI_COMMIT_BRANCH
-        -f Dockerfile
+        -f .kube/php/Dockerfile
         .
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker push $PHP_IMAGE:$TAG
@@ -60,7 +60,7 @@ build-web:
     - docker build
         -t $WEB_IMAGE:$TAG
         -t $WEB_IMAGE:$CI_COMMIT_BRANCH
-        -f Dockerfile.nginx
+        -f .kube/nginx/Dockerfile
         .
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker push $WEB_IMAGE:$TAG
