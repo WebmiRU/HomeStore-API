@@ -1,0 +1,123 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\ReorderImagesRequest;
+use App\Http\Requests\StoreImageRequest;
+use App\Http\Requests\UpdateImageAltRequest;
+use App\Http\Resources\ImageResource;
+use App\Models\Image;
+use App\Models\Item;
+use App\Models\Store;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class ImageController extends Controller
+{
+    public function storeForItem(StoreImageRequest $request, Item $model): JsonResponse
+    {
+        return (new ImageResource($this->store($request, $model)))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function storeForStore(StoreImageRequest $request, Store $model): JsonResponse
+    {
+        return (new ImageResource($this->store($request, $model)))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    private function store(StoreImageRequest $request, Item|Store $model): Image
+    {
+        $file = $request->file('file');
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+        $path = 'images/' . Str::uuid7() . '.' . $extension;
+
+        Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
+
+        $image = Image::create([
+            'path'          => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime'          => $file->getMimeType(),
+        ]);
+
+        $model->images()->attach($image->id, [
+            'alt'    => null,
+            'weight' => $this->nextWeight($model),
+        ]);
+
+        return $model->images()->where('image.id', $image->id)->first();
+    }
+
+    private function nextWeight(Item|Store $model): int
+    {
+        $currentMax = (int) $model->images()->max('image_m2m_' . ($model instanceof Store ? 'sotre' : 'item') . '.weight');
+
+        return $currentMax + 1;
+    }
+
+    public function updateAltForItem(UpdateImageAltRequest $request, Item $model, Image $image): JsonResponse
+    {
+        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+
+        return (new ImageResource($this->withPivot($model, $image)))->response();
+    }
+
+    public function updateAltForStore(UpdateImageAltRequest $request, Store $model, Image $image): JsonResponse
+    {
+        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+
+        return (new ImageResource($this->withPivot($model, $image)))->response();
+    }
+
+    public function reorderForItem(ReorderImagesRequest $request, Item $model): JsonResponse
+    {
+        $this->reorder($model, $request->validated('ids'));
+
+        return response()->json(['ids' => $request->validated('ids')]);
+    }
+
+    public function reorderForStore(ReorderImagesRequest $request, Store $model): JsonResponse
+    {
+        $this->reorder($model, $request->validated('ids'));
+
+        return response()->json(['ids' => $request->validated('ids')]);
+    }
+
+    private function reorder(Item|Store $model, array $ids): void
+    {
+        $attachedIds = $model->images()->pluck('image.id')->all();
+
+        $position = 0;
+        foreach ($ids as $imageId) {
+            if (! in_array($imageId, $attachedIds, true)) {
+                continue;
+            }
+
+            $model->images()->updateExistingPivot($imageId, ['weight' => $position]);
+            $position++;
+        }
+
+        // Любые картинки, не упомянутые в списке, отправляем в конец
+        foreach ($attachedIds as $attachedId) {
+            if (! in_array($attachedId, $ids)) {
+                $model->images()->updateExistingPivot($attachedId, ['weight' => $position]);
+                $position++;
+            }
+        }
+    }
+
+    private function withPivot(Item|Store $model, Image $image): Image
+    {
+        return $model->images()->where('image.id', $image->id)->first();
+    }
+
+    public function delete(Image $model): JsonResponse
+    {
+        $model->delete();
+
+        return response()->json(null, 204);
+    }
+}

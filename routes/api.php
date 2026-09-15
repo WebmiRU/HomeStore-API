@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CodeController;
+use App\Http\Controllers\ImageController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\LabelListController;
@@ -52,6 +53,16 @@ Route::prefix('item')->controller(ItemController::class)->group(function (): voi
     Route::get('{model}', 'get');
     Route::post('/', 'post');
     Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+Route::prefix('image')->controller(ImageController::class)->group(function (): void {
+    Route::post('item/{model}', 'storeForItem');
+    Route::post('store/{model}', 'storeForStore');
+    Route::patch('item/{model}/image/{image}/alt', 'updateAltForItem');
+    Route::patch('store/{model}/image/{image}/alt', 'updateAltForStore');
+    Route::post('item/{model}/image/reorder', 'reorderForItem');
+    Route::post('store/{model}/image/reorder', 'reorderForStore');
     Route::delete('{model}', 'delete');
 });
 

@@ -19,7 +19,7 @@ class ItemController extends Controller
     public function index(): ResourceCollection
     {
         return ItemResource::collection(
-            Item::with(['code', 'store.parent'])
+            Item::with(['code', 'store.parent', 'images'])
                 ->orderBy('id')
                 ->paginate()
         );
@@ -27,7 +27,7 @@ class ItemController extends Controller
 
     public function get(Item $model): ItemResource
     {
-        return new ItemResource($model->load(['code', 'store.parent']));
+        return new ItemResource($model->load(['code', 'store.parent', 'images']));
     }
 
     public function post(StoreItemRequest $request): JsonResponse
@@ -74,7 +74,7 @@ class ItemController extends Controller
             return $item;
         });
 
-        return (new ItemResource($item->load(['code', 'store.parent'])))
+        return (new ItemResource($item->load(['code', 'store.parent', 'images'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -102,7 +102,7 @@ class ItemController extends Controller
             $this->bindCodeToItem($model, $code);
         });
 
-        return new ItemResource($model->load(['code', 'store.parent']));
+        return new ItemResource($model->load(['code', 'store.parent', 'images']));
     }
 
     private function bindCodeToItem(Item $item, string $code): void

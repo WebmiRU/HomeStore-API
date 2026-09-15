@@ -34,4 +34,12 @@ class Item extends Model
     {
         return $this->belongsTo(Store::class);
     }
+
+    public function images()
+    {
+        return $this->belongsToMany(Image::class, 'image_m2m_item')
+            ->withPivot('image_id', 'item_id', 'alt', 'weight')
+            ->withTimestamps()
+            ->orderBy('image_m2m_item.weight');
+    }
 }

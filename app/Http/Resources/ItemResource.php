@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\ImageResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,6 +29,7 @@ class ItemResource extends JsonResource
                 }
                 return $chain;
             }),
+            'images'  => ImageResource::collection($this->whenLoaded('images')),
         ];
     }
 }

@@ -63,6 +63,8 @@ RUN COMPOSER_CACHE_DIR=/tmp/composer-cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && rm -rf /tmp/composer-cache resources/pdf/fonts
 
+RUN printf 'post_max_size = 25M\nupload_max_filesize = 25M\nmemory_limit = 256M\n' > /usr/local/etc/php/conf.d/uploads.ini
+
 EXPOSE 9000
 
 CMD ["php-fpm", "-F"]

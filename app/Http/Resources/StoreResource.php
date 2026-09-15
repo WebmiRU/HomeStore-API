@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\ImageResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,6 +19,7 @@ class StoreResource extends JsonResource
             'updated_at'  => $this->updated_at,
             'parents'     => array_reverse($this->ancestors()),
             'code'        => $this->whenLoaded('code', fn () => $this->code?->code),
+            'images'      => ImageResource::collection($this->whenLoaded('images')),
         ];
     }
 }
