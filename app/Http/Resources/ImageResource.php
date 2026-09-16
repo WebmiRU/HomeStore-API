@@ -12,6 +12,7 @@ class ImageResource extends JsonResource
         return [
             'id'            => $this->id,
             'url'           => $this->url(),
+            'sha256'        => $this->sha256,
             'original_name' => $this->original_name,
             'mime'          => $this->mime,
             'alt'           => $this->pivot?->alt,

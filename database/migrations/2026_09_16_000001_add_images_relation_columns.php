@@ -12,6 +12,7 @@ return new class extends Migration
             $table->text('path')->nullable();
             $table->text('original_name')->nullable();
             $table->string('mime')->nullable();
+            $table->string('sha256', 64)->nullable()->unique();
         });
 
         Schema::table('image_m2m_item', function (Blueprint $table) {
@@ -32,7 +33,7 @@ return new class extends Migration
                 ->cascadeOnUpdate();
         });
 
-        Schema::table('image_m2m_sotre', function (Blueprint $table) {
+        Schema::table('image_m2m_store', function (Blueprint $table) {
             $table->unsignedBigInteger('image_id')->nullable()->index();
             $table->unsignedBigInteger('store_id')->nullable()->index();
             $table->string('alt')->nullable();
@@ -53,7 +54,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('image_m2m_sotre', function (Blueprint $table) {
+        Schema::table('image_m2m_store', function (Blueprint $table) {
             $table->dropForeign(['image_id']);
             $table->dropForeign(['store_id']);
             $table->dropColumn(['image_id', 'store_id', 'alt', 'weight']);
@@ -66,7 +67,7 @@ return new class extends Migration
         });
 
         Schema::table('image', function (Blueprint $table) {
-            $table->dropColumn(['path', 'original_name', 'mime']);
+            $table->dropColumn(['path', 'original_name', 'mime', 'sha256']);
         });
     }
 };

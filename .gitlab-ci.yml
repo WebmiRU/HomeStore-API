@@ -4,7 +4,9 @@ stages:
 
 variables:
   PHP_IMAGE: $CI_REGISTRY_IMAGE
-  WEB_IMAGE: $CI_REGISTRY_IMAGE-web
+  WEB_IMAGE: $CI_REGISTRY_IMAGE
+  WEB_TAG: $TAG-web
+  BRANCH_WEB_TAG: $CI_COMMIT_BRANCH-web
   TAG: $CI_COMMIT_SHORT_SHA
   KUBE_NAMESPACE: home-store
 
@@ -57,15 +59,16 @@ build-web:
   services:
     - docker:24.0-dind
   script:
+    - echo "Building web image for $CI_COMMIT_BRANCH ($TAG)"
     - docker build
-        -t $WEB_IMAGE:$TAG
-        -t $WEB_IMAGE:$CI_COMMIT_BRANCH
+        -t $WEB_IMAGE:$WEB_TAG
+        -t $WEB_IMAGE:$BRANCH_WEB_TAG
         -f .kube/nginx/Dockerfile
         .
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push $WEB_IMAGE:$TAG
+    - docker push $WEB_IMAGE:$WEB_TAG
     - if [ "$CI_COMMIT_BRANCH" = "dev" ] || [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker push $WEB_IMAGE:$CI_COMMIT_BRANCH;
+        docker push $WEB_IMAGE:$BRANCH_WEB_TAG;
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
@@ -75,15 +78,15 @@ build-web:
 # Deploy to k3s
 deploy:
   stage: deploy
-  image: bitnami/kubectl:1.31
+  image: registry.k8s.io/kubectl:v1.31.0
   before_script:
     - mkdir -p /root/.kube
     - echo "$KUBE_CONFIG" > /root/.kube/config
   script:
-    - echo "Deploying $PHP_IMAGE:$TAG / $WEB_IMAGE:$TAG to $KUBE_NAMESPACE"
+    - echo "Deploying $PHP_IMAGE:$TAG / $WEB_IMAGE:$WEB_TAG to $KUBE_NAMESPACE"
     - kubectl set image deployment/api-app api-app=$PHP_IMAGE:$TAG -n $KUBE_NAMESPACE
     - kubectl rollout status deployment/api-app -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl set image deployment/api-web api-web=$WEB_IMAGE:$TAG -n $KUBE_NAMESPACE
+    - kubectl set image deployment/api-web api-web=$WEB_IMAGE:$WEB_TAG -n $KUBE_NAMESPACE
     - kubectl rollout status deployment/api-web -n $KUBE_NAMESPACE --timeout=300s
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"

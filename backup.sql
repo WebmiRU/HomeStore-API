@@ -355,10 +355,10 @@ ALTER SEQUENCE public.image_m2m_label_preset_id_seq OWNED BY public.image_m2m_la
 
 
 --
--- Name: image_m2m_sotre; Type: TABLE; Schema: public; Owner: -
+-- Name: image_m2m_store; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.image_m2m_sotre (
+CREATE TABLE public.image_m2m_store (
     id bigint NOT NULL,
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
@@ -366,10 +366,10 @@ CREATE TABLE public.image_m2m_sotre (
 
 
 --
--- Name: image_m2m_sotre_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: image_m2m_store_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.image_m2m_sotre_id_seq
+CREATE SEQUENCE public.image_m2m_store_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -378,10 +378,10 @@ CREATE SEQUENCE public.image_m2m_sotre_id_seq
 
 
 --
--- Name: image_m2m_sotre_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: image_m2m_store_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.image_m2m_sotre_id_seq OWNED BY public.image_m2m_sotre.id;
+ALTER SEQUENCE public.image_m2m_store_id_seq OWNED BY public.image_m2m_store.id;
 
 
 --
@@ -794,10 +794,10 @@ ALTER TABLE ONLY public.image_m2m_label_preset ALTER COLUMN id SET DEFAULT nextv
 
 
 --
--- Name: image_m2m_sotre id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: image_m2m_store id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.image_m2m_sotre ALTER COLUMN id SET DEFAULT nextval('public.image_m2m_sotre_id_seq'::regclass);
+ALTER TABLE ONLY public.image_m2m_store ALTER COLUMN id SET DEFAULT nextval('public.image_m2m_store_id_seq'::regclass);
 
 
 --
@@ -1161,10 +1161,10 @@ COPY public.image_m2m_label_preset (id, image_id, label_preset_id, created_at, u
 
 
 --
--- Data for Name: image_m2m_sotre; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: image_m2m_store; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.image_m2m_sotre (id, created_at, updated_at) FROM stdin;
+COPY public.image_m2m_store (id, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -1401,7 +1401,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 6	2026_08_06_134552_create_store_table	1
 7	2026_08_06_134553_create_item_table	1
 8	2026_08_06_134555_create_code_table	1
-9	2026_08_06_134629_create_image_m2m_sotre_table	1
+9	2026_08_06_134629_create_image_m2m_store_table	1
 10	2026_08_06_134635_create_image_m2m_item_table	1
 11	2026_08_07_173000_create_label_preset_table	1
 12	2026_08_07_183000_create_label_list_table	1
@@ -1542,10 +1542,10 @@ SELECT pg_catalog.setval('public.image_m2m_label_preset_id_seq', 1, true);
 
 
 --
--- Name: image_m2m_sotre_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: image_m2m_store_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.image_m2m_sotre_id_seq', 1, true);
+SELECT pg_catalog.setval('public.image_m2m_store_id_seq', 1, true);
 
 
 --
@@ -1716,11 +1716,11 @@ ALTER TABLE ONLY public.image_m2m_label_preset
 
 
 --
--- Name: image_m2m_sotre image_m2m_sotre_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: image_m2m_store image_m2m_store_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.image_m2m_sotre
-    ADD CONSTRAINT image_m2m_sotre_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.image_m2m_store
+    ADD CONSTRAINT image_m2m_store_pkey PRIMARY KEY (id);
 
 
 --

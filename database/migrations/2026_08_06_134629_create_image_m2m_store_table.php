@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('image_m2m_sotre', function (Blueprint $table) {
+        Schema::create('image_m2m_store', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
         });
@@ -16,6 +16,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('image_m2m_sotre');
+        Schema::dropIfExists('image_m2m_store');
     }
 };

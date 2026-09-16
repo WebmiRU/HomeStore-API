@@ -34,10 +34,10 @@ class Store extends Model
 
     public function images()
     {
-        return $this->belongsToMany(Image::class, 'image_m2m_sotre')
+        return $this->belongsToMany(Image::class, 'image_m2m_store')
             ->withPivot('image_id', 'store_id', 'alt', 'weight')
             ->withTimestamps()
-            ->orderBy('image_m2m_sotre.weight');
+            ->orderBy('image_m2m_store.weight');
     }
 
     public function ancestors(): array

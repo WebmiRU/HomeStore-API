@@ -63,7 +63,8 @@ Route::prefix('image')->controller(ImageController::class)->group(function (): v
     Route::patch('store/{model}/image/{image}/alt', 'updateAltForStore');
     Route::post('item/{model}/image/reorder', 'reorderForItem');
     Route::post('store/{model}/image/reorder', 'reorderForStore');
-    Route::delete('{model}', 'delete');
+    Route::delete('item/{model}/image/{image}', 'removeForItem');
+    Route::delete('store/{model}/image/{image}', 'removeForStore');
 });
 
 Route::prefix('label')->controller(LabelController::class)->group(function (): void {

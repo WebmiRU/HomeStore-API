@@ -13,6 +13,7 @@ class Image extends Model
         'path',
         'original_name',
         'mime',
+        'sha256',
     ];
 
     public function labelPresets()
@@ -29,19 +30,12 @@ class Image extends Model
 
     public function stores()
     {
-        return $this->belongsToMany(Store::class, 'image_m2m_sotre')
+        return $this->belongsToMany(Store::class, 'image_m2m_store')
             ->withTimestamps();
     }
 
     public function url(): string
     {
         return Storage::disk('s3')->url($this->path);
-    }
-
-    public static function booted(): void
-    {
-        static::deleting(function (Image $image) {
-            Storage::disk('s3')->delete($image->path);
-        });
     }
 }

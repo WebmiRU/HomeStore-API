@@ -10,6 +10,7 @@ use App\Models\Image;
 use App\Models\Item;
 use App\Models\Store;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -32,16 +33,34 @@ class ImageController extends Controller
     private function store(StoreImageRequest $request, Item|Store $model): Image
     {
         $file = $request->file('file');
-        $extension = strtolower((string) $file->getClientOriginalExtension());
-        $path = 'images/' . Str::uuid7() . '.' . $extension;
+        $sha256 = hash_file('sha256', $file->getRealPath());
 
-        Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
+        $image = Image::query()->where('sha256', $sha256)->first();
 
-        $image = Image::create([
-            'path'          => $path,
-            'original_name' => $file->getClientOriginalName(),
-            'mime'          => $file->getMimeType(),
-        ]);
+        if ($image === null) {
+            $extension = strtolower((string) $file->getClientOriginalExtension());
+            if ($extension === '') {
+                $extension = strtolower((string) Str::after($file->getMimeType(), '/'));
+            }
+            $path = 'src/' . $sha256 . '.' . $extension;
+
+            Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
+
+            try {
+                $image = Image::create([
+                    'path'          => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime'          => $file->getMimeType(),
+                    'sha256'        => $sha256,
+                ]);
+            } catch (QueryException $e) {
+                // Параллельная загрузка такого же файла уже создала запись
+                if ($e->getCode() !== '23505') {
+                    throw $e;
+                }
+                $image = Image::query()->where('sha256', $sha256)->firstOrFail();
+            }
+        }
 
         $model->images()->attach($image->id, [
             'alt'    => null,
@@ -53,7 +72,7 @@ class ImageController extends Controller
 
     private function nextWeight(Item|Store $model): int
     {
-        $currentMax = (int) $model->images()->max('image_m2m_' . ($model instanceof Store ? 'sotre' : 'item') . '.weight');
+        $currentMax = (int) $model->images()->max('image_m2m_' . ($model instanceof Store ? 'store' : 'item') . '.weight');
 
         return $currentMax + 1;
     }
@@ -114,9 +133,16 @@ class ImageController extends Controller
         return $model->images()->where('image.id', $image->id)->first();
     }
 
-    public function delete(Image $model): JsonResponse
+    public function removeForItem(Item $model, Image $image): JsonResponse
     {
-        $model->delete();
+        $model->images()->detach($image->id);
+
+        return response()->json(null, 204);
+    }
+
+    public function removeForStore(Store $model, Image $image): JsonResponse
+    {
+        $model->images()->detach($image->id);
 
         return response()->json(null, 204);
     }
