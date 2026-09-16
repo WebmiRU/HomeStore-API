@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\OwnedByUser;
+
 use Illuminate\Database\Eloquent\Model;
 
 class LabelPreset extends Model
 {
+    use OwnedByUser;
+
     protected $table = 'label_preset';
 
     protected $fillable = [

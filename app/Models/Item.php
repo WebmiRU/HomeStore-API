@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\OwnedByUser;
 use App\Models\Concerns\Searchable;
 use Illuminate\Database\Eloquent\Model;
 
 class Item extends Model
 {
     use Searchable;
+    use OwnedByUser;
 
     protected $table = 'item';
 

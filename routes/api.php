@@ -33,6 +33,8 @@ Route::get('/health', fn () => response()->json([
 Route::post('/login', [UserAuthController::class, 'login'])
     ->middleware('throttle:10,1');
 
+Route::middleware('auth.token')->group(function (): void {
+
 Route::get('/search', [SearchController::class, 'search']);
 
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {
@@ -114,4 +116,6 @@ Route::prefix('warehouse')->controller(WarehouseController::class)->group(functi
     Route::post('/', 'post');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
+});
+
 });

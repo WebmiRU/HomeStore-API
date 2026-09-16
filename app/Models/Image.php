@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\OwnedByUser;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Image extends Model
 {
+    use OwnedByUser;
+
     protected $table = 'image';
 
     protected $fillable = [
