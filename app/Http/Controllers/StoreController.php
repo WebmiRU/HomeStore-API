@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateStoreRequest;
 use App\Http\Resources\StoreResource;
 use App\Models\Code;
 use App\Models\Store;
+use App\Models\Warehouse;
 use Com\Tecnick\Barcode\Barcode;
 use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
@@ -42,8 +43,11 @@ class StoreController extends Controller
 
     public function post(StoreStoreRequest $request): JsonResponse
     {
-        $store = DB::transaction(function () use ($request) {
-            $data = $request->validated();
+        $data = $request->validated();
+
+        abort_unless($this->canCreateStore($data), 403, 'Нет права на создание в этом складе');
+
+        $store = DB::transaction(function () use ($data) {
             $code = isset($data['code']) ? trim((string) $data['code']) : '';
             unset($data['code']);
 
@@ -92,6 +96,31 @@ class StoreController extends Controller
         });
 
         return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user']));
+    }
+
+    private function canCreateStore(array $data): bool
+    {
+        $access = app(AccessService::class);
+
+        if (! empty($data['warehouse_id'])) {
+            $warehouse = Warehouse::find((int) $data['warehouse_id']);
+
+            return $warehouse !== null && $access->canCreate($warehouse);
+        }
+
+        if (! empty($data['parent_id'])) {
+            $parent = Store::withoutGlobalScopes()->find((int) $data['parent_id']);
+
+            if ($parent === null) {
+                return false;
+            }
+
+            if ($parent->warehouse_id !== null) {
+                return $parent->warehouse !== null && $access->canCreate($parent->warehouse);
+            }
+        }
+
+        return true;
     }
 
     private function bindCodeToStore(Store $store, string $code): void

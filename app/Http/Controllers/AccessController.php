@@ -107,7 +107,7 @@ class AccessController extends Controller
         $rights = array_values(array_unique(array_map('strval', $rights)));
         $rights = array_values(array_intersect($rights, AccessService::ALLOWED));
 
-        if (! in_array('view', $rights, true) && count(array_intersect(['edit', 'delete'], $rights)) > 0) {
+        if (! in_array('view', $rights, true) && count(array_intersect(['create', 'edit', 'delete'], $rights)) > 0) {
             $rights[] = 'view';
         }
 

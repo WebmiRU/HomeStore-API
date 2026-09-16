@@ -20,11 +20,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class AccessService
 {
-    public const ALLOWED = ['view', 'edit', 'delete'];
+    public const ALLOWED = ['view', 'create', 'edit', 'delete'];
 
     public function canView(Model $model): bool
     {
         return in_array('view', $this->rightsFor($model), true);
+    }
+
+    public function canCreate(Model $model): bool
+    {
+        return in_array('create', $this->rightsFor($model), true);
     }
 
     public function canEdit(Model $model): bool
@@ -48,7 +53,7 @@ class AccessService
         $own = $model->getAttribute('user_id');
 
         if ((int) $own === (int) $user->id) {
-            return ['view', 'edit', 'delete'];
+            return ['view', 'create', 'edit', 'delete'];
         }
 
         $warehouses = $this->governingWarehouses($model);

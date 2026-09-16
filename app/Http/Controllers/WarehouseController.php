@@ -6,6 +6,7 @@ use App\Http\Requests\StoreWarehouseRequest;
 use App\Http\Requests\UpdateWarehouseRequest;
 use App\Http\Resources\WarehouseResource;
 use App\Models\Warehouse;
+use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 
@@ -45,6 +46,8 @@ class WarehouseController extends Controller
 
     public function put(UpdateWarehouseRequest $request, Warehouse $model): WarehouseResource
     {
+        abort_unless((int) $model->user_id === (int) CurrentUser::id(), 403);
+
         $model->update($request->validated());
 
         return new WarehouseResource($model->load('user'));
@@ -52,6 +55,8 @@ class WarehouseController extends Controller
 
     public function delete(Warehouse $model): JsonResponse
     {
+        abort_unless((int) $model->user_id === (int) CurrentUser::id(), 403);
+
         $model->delete();
 
         return response()->json(null, 204);

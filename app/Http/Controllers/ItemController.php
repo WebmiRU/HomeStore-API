@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateItemRequest;
 use App\Http\Resources\ItemResource;
 use App\Models\Code;
 use App\Models\Item;
+use App\Models\Store;
 use Com\Tecnick\Barcode\Barcode;
 use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
@@ -33,8 +34,11 @@ class ItemController extends Controller
 
     public function post(StoreItemRequest $request): JsonResponse
     {
-        $item = DB::transaction(function () use ($request) {
-            $data = $request->validated();
+        $data = $request->validated();
+
+        abort_unless($this->canCreateItem($data), 403, 'Нет права на создание в этом складе');
+
+        $item = DB::transaction(function () use ($data) {
             $code = isset($data['code']) ? trim((string) $data['code']) : '';
             unset($data['code']);
 
@@ -106,6 +110,25 @@ class ItemController extends Controller
         });
 
         return new ItemResource($model->load(['code', 'store.parent', 'images', 'user', 'images.user']));
+    }
+
+    private function canCreateItem(array $data): bool
+    {
+        if (empty($data['store_id'])) {
+            return true;
+        }
+
+        $store = Store::find((int) $data['store_id']);
+
+        if ($store === null) {
+            return false;
+        }
+
+        if ($store->warehouse_id === null) {
+            return true;
+        }
+
+        return $store->warehouse !== null && app(AccessService::class)->canCreate($store->warehouse);
     }
 
     private function bindCodeToItem(Item $item, string $code): void

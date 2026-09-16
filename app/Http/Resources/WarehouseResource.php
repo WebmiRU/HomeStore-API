@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Warehouse;
+use App\Services\AccessService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +18,8 @@ class WarehouseResource extends JsonResource
             'user'       => $this->relationLoaded('user') && $this->user !== null
                 ? new UserBriefResource($this->user)
                 : $this->when(false, null),
+            'can_create' => $this->resource instanceof Warehouse
+                && app(AccessService::class)->canCreate($this->resource),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

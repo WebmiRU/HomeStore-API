@@ -16,7 +16,7 @@ class UpdateAccessRequest extends FormRequest
     {
         return [
             'rights'   => ['required', 'array', 'min:1'],
-            'rights.*' => [Rule::in(['view', 'edit', 'delete'])],
+            'rights.*' => [Rule::in(['view', 'create', 'edit', 'delete'])],
         ];
     }
 }
