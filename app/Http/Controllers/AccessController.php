@@ -49,7 +49,7 @@ class AccessController extends Controller
 
         abort_unless((int) $warehouse->user_id === (int) CurrentUser::id(), 403);
 
-        $rights = $this->normalizeRights($request->input('rights', []));
+        $rights = $request->input('rights', []);
 
         $grant = DB::transaction(function () use ($warehouse, $user_id, $rights) {
             $existing = AccessGrant::query()
@@ -83,9 +83,7 @@ class AccessController extends Controller
     {
         abort_unless((int) $model->owner_id === (int) CurrentUser::id(), 403);
 
-        $rights = $this->normalizeRights($request->input('rights', []));
-
-        $model->update(['rights' => $rights]);
+        $model->update(['rights' => $request->validated()['rights']]);
 
         return new AccessGrantResource($model->load(['warehouse', 'user']));
     }
@@ -97,20 +95,5 @@ class AccessController extends Controller
         $model->delete();
 
         return response()->json(null, 204);
-    }
-
-    /**
-     * Право edit/delete неявно включает view.
-     */
-    private function normalizeRights(array $rights): array
-    {
-        $rights = array_values(array_unique(array_map('strval', $rights)));
-        $rights = array_values(array_intersect($rights, AccessService::ALLOWED));
-
-        if (! in_array('view', $rights, true) && count(array_intersect(['create', 'edit', 'delete'], $rights)) > 0) {
-            $rights[] = 'view';
-        }
-
-        return $rights;
     }
 }
