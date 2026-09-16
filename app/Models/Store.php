@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\OwnedByUser;
+use App\Models\Concerns\AccessibleByUser;
 use App\Models\Concerns\Searchable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Store extends Model
 {
     use Searchable;
-    use OwnedByUser;
+    use AccessibleByUser;
 
     protected $table = 'store';
 
@@ -17,12 +18,18 @@ class Store extends Model
         'title',
         'title_print',
         'parent_id',
+        'warehouse_id',
         'user_id',
     ];
 
     public function user()
     {
         return $this->belongsTo(UserProfile::class, 'user_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 
     public function parent()
@@ -59,5 +66,14 @@ class Store extends Model
         }
 
         return array_reverse($chain);
+    }
+
+    protected static function applyAccessibilityScope(Builder $builder, int $userId): void
+    {
+        $builder->where('store.user_id', $userId)
+            ->orWhere(function (Builder $q) use ($userId) {
+                $q->whereNotNull('store.warehouse_id')
+                    ->whereIn('store.warehouse_id', static::accessibleWarehouses($userId));
+            });
     }
 }

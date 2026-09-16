@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccessController;
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\ItemController;
@@ -35,7 +36,17 @@ Route::post('/login', [UserAuthController::class, 'login'])
 
 Route::middleware('auth.token')->group(function (): void {
 
+Route::post('/logout', [UserAuthController::class, 'logout']);
+
 Route::get('/search', [SearchController::class, 'search']);
+
+Route::prefix('access')->controller(AccessController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('warehouse/{model}', 'forWarehouse');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
 
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {
     Route::get('/', 'index');
@@ -105,6 +116,7 @@ Route::prefix('user')->controller(UserProfileController::class)->group(function 
     Route::get('all', 'all');
     Route::get('{model}', 'get');
     Route::post('/', 'post');
+    Route::post('{model}/avatar', 'updateAvatar');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
 });

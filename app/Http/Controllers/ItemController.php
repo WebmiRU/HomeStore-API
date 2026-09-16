@@ -8,6 +8,7 @@ use App\Http\Resources\ItemResource;
 use App\Models\Code;
 use App\Models\Item;
 use Com\Tecnick\Barcode\Barcode;
+use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +82,8 @@ class ItemController extends Controller
 
     public function put(UpdateItemRequest $request, Item $model): ItemResource
     {
+        abort_unless(app(AccessService::class)->canEdit($model), 403);
+
         DB::transaction(function () use ($request, $model) {
             $data = $request->validated();
             $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
@@ -141,6 +144,8 @@ class ItemController extends Controller
 
     public function delete(Item $model): JsonResponse
     {
+        abort_unless(app(AccessService::class)->canDelete($model), 403);
+
         $model->delete();
 
         return response()->json(null, 204);

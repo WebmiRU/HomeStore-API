@@ -19,6 +19,10 @@ class StoreResource extends JsonResource
             'title'       => $this->title,
             'title_print' => $this->title_print,
             'parent_id'   => $this->parent_id,
+            'warehouse_id'=> $this->warehouse_id,
+            'warehouse'   => $this->relationLoaded('warehouse') && $this->warehouse !== null
+                ? ['id' => $this->warehouse->id, 'title' => $this->warehouse->title]
+                : $this->when(false, null),
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
             'parents'     => array_reverse($this->ancestors()),

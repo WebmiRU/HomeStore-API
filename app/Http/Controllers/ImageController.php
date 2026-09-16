@@ -9,6 +9,7 @@ use App\Http\Resources\ImageResource;
 use App\Models\Image;
 use App\Models\Item;
 use App\Models\Store;
+use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +19,8 @@ class ImageController extends Controller
 {
     public function storeForItem(StoreImageRequest $request, Item $model): JsonResponse
     {
+        $this->requireEdit($model);
+
         return (new ImageResource($this->store($request, $model)))
             ->response()
             ->setStatusCode(201);
@@ -25,6 +28,8 @@ class ImageController extends Controller
 
     public function storeForStore(StoreImageRequest $request, Store $model): JsonResponse
     {
+        $this->requireEdit($model);
+
         return (new ImageResource($this->store($request, $model)))
             ->response()
             ->setStatusCode(201);
@@ -79,6 +84,8 @@ class ImageController extends Controller
 
     public function updateAltForItem(UpdateImageAltRequest $request, Item $model, Image $image): JsonResponse
     {
+        $this->requireEdit($model);
+
         $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
@@ -86,6 +93,8 @@ class ImageController extends Controller
 
     public function updateAltForStore(UpdateImageAltRequest $request, Store $model, Image $image): JsonResponse
     {
+        $this->requireEdit($model);
+
         $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
@@ -93,6 +102,7 @@ class ImageController extends Controller
 
     public function reorderForItem(ReorderImagesRequest $request, Item $model): JsonResponse
     {
+        $this->requireEdit($model);
         $this->reorder($model, $request->validated('ids'));
 
         return response()->json(['ids' => $request->validated('ids')]);
@@ -100,6 +110,7 @@ class ImageController extends Controller
 
     public function reorderForStore(ReorderImagesRequest $request, Store $model): JsonResponse
     {
+        $this->requireEdit($model);
         $this->reorder($model, $request->validated('ids'));
 
         return response()->json(['ids' => $request->validated('ids')]);
@@ -135,6 +146,8 @@ class ImageController extends Controller
 
     public function removeForItem(Item $model, Image $image): JsonResponse
     {
+        $this->requireEdit($model);
+
         $model->images()->detach($image->id);
 
         return response()->json(null, 204);
@@ -142,8 +155,15 @@ class ImageController extends Controller
 
     public function removeForStore(Store $model, Image $image): JsonResponse
     {
+        $this->requireEdit($model);
+
         $model->images()->detach($image->id);
 
         return response()->json(null, 204);
+    }
+
+    private function requireEdit(Item|Store $model): void
+    {
+        abort_unless(app(AccessService::class)->canEdit($model), 403);
     }
 }

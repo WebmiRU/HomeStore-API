@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\OwnedByUser;
-
+use App\Models\Concerns\AccessibleByUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Image extends Model
 {
-    use OwnedByUser;
+    use AccessibleByUser;
 
     protected $table = 'image';
 
@@ -47,5 +47,22 @@ class Image extends Model
     public function url(): string
     {
         return Storage::disk('s3')->url($this->path);
+    }
+
+    protected static function applyAccessibilityScope(Builder $builder, int $userId): void
+    {
+        $builder->where('image.user_id', $userId)
+            ->orWhereExists(function ($q) use ($userId) {
+                $q->selectRaw('1')
+                    ->from('image_m2m_store as p')
+                    ->whereColumn('p.image_id', 'image.id')
+                    ->whereIn('p.store_id', static::accessibleStores($userId));
+            })
+            ->orWhereExists(function ($q) use ($userId) {
+                $q->selectRaw('1')
+                    ->from('image_m2m_item as p')
+                    ->whereColumn('p.image_id', 'image.id')
+                    ->whereIn('p.item_id', static::accessibleItems($userId));
+            });
     }
 }

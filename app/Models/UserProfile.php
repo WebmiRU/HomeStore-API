@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class UserProfile extends Model
 {
@@ -14,6 +15,7 @@ class UserProfile extends Model
         'name',
         'email',
         'password',
+        'avatar',
     ];
 
     protected $hidden = [
@@ -30,6 +32,11 @@ class UserProfile extends Model
     public function verifyPassword(string $plain): bool
     {
         return $this->password !== null && Hash::check($plain, $this->password);
+    }
+
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar !== null ? Storage::disk('s3')->url($this->avatar) : null;
     }
 
     public function warehouses(): HasMany

@@ -8,6 +8,7 @@ use App\Http\Resources\StoreResource;
 use App\Models\Code;
 use App\Models\Store;
 use Com\Tecnick\Barcode\Barcode;
+use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,7 @@ class StoreController extends Controller
     public function index(): ResourceCollection
     {
         return StoreResource::collection(
-            Store::with(['code', 'parent', 'images', 'user', 'images.user'])
+            Store::with(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])
                 ->orderBy('id')
                 ->paginate()
         );
@@ -28,7 +29,7 @@ class StoreController extends Controller
     public function all(): ResourceCollection
     {
         return StoreResource::collection(
-            Store::with(['code', 'parent', 'images', 'user', 'images.user'])
+            Store::with(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])
                 ->orderBy('id')
                 ->get()
         );
@@ -36,7 +37,7 @@ class StoreController extends Controller
 
     public function get(Store $model): StoreResource
     {
-        return new StoreResource($model->load(['code', 'parent', 'images', 'user', 'images.user']));
+        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user']));
     }
 
     public function post(StoreStoreRequest $request): JsonResponse
@@ -60,13 +61,15 @@ class StoreController extends Controller
             return $store;
         });
 
-        return (new StoreResource($store->load(['code', 'parent', 'images', 'user', 'images.user'])))
+        return (new StoreResource($store->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])))
             ->response()
             ->setStatusCode(201);
     }
 
     public function put(UpdateStoreRequest $request, Store $model): StoreResource
     {
+        abort_unless(app(AccessService::class)->canEdit($model), 403);
+
         DB::transaction(function () use ($request, $model) {
             $data = $request->validated();
             $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
@@ -88,7 +91,7 @@ class StoreController extends Controller
             $this->bindCodeToStore($model, $code);
         });
 
-        return new StoreResource($model->load(['code', 'parent', 'images', 'user', 'images.user']));
+        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user']));
     }
 
     private function bindCodeToStore(Store $store, string $code): void
@@ -127,6 +130,8 @@ class StoreController extends Controller
 
     public function delete(Store $model): JsonResponse
     {
+        abort_unless(app(AccessService::class)->canDelete($model), 403);
+
         $model->delete();
 
         return response()->json(null, 204);

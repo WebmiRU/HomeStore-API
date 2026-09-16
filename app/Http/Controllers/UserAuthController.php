@@ -6,7 +6,9 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Resources\UserProfileResource;
 use App\Models\UserProfile;
 use App\Services\UserTokenService;
+use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class UserAuthController extends Controller
@@ -29,5 +31,22 @@ class UserAuthController extends Controller
             'token' => $token,
             'user'  => new UserProfileResource($user),
         ]);
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $header = (string) $request->header('Authorization', '');
+        $plain = str_starts_with($header, 'Bearer ')
+            ? trim(substr($header, 7))
+            : '';
+
+        $token = $plain !== '' ? app(UserTokenService::class)->resolve($plain) : null;
+        if ($token !== null) {
+            app(UserTokenService::class)->revoke($token);
+        }
+
+        CurrentUser::set(null);
+
+        return response()->json(null, 204);
     }
 }

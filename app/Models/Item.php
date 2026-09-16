@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\OwnedByUser;
+use App\Models\Concerns\AccessibleByUser;
 use App\Models\Concerns\Searchable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Item extends Model
 {
     use Searchable;
-    use OwnedByUser;
+    use AccessibleByUser;
 
     protected $table = 'item';
 
@@ -49,5 +50,14 @@ class Item extends Model
             ->withPivot('image_id', 'item_id', 'alt', 'weight')
             ->withTimestamps()
             ->orderBy('image_m2m_item.weight');
+    }
+
+    protected static function applyAccessibilityScope(Builder $builder, int $userId): void
+    {
+        $builder->where('item.user_id', $userId)
+            ->orWhere(function (Builder $q) use ($userId) {
+                $q->whereNotNull('item.store_id')
+                    ->whereIn('item.store_id', static::accessibleStores($userId));
+            });
     }
 }
