@@ -44,6 +44,25 @@ class LabelPreset extends Model
     }
 
     /**
+     * Сколько ячеек помещается на лист по горизонтали, по вертикали и всего.
+     */
+    public function layout(): array
+    {
+        $columns = (int) max(1, floor(
+            ($this->page_width - $this->page_margin_left - $this->page_margin_right) / $this->cell_width
+        ));
+        $rows = (int) max(1, floor(
+            ($this->page_height - $this->page_margin_top - $this->page_margin_bottom) / $this->cell_height
+        ));
+
+        return [
+            'columns'   => $columns,
+            'rows'      => $rows,
+            'per_page'  => $columns * $rows,
+        ];
+    }
+
+    /**
      * Return all options as an associative array suitable for LabelPdfService.
      */
     public function toOptions(): array

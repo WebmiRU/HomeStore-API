@@ -9,6 +9,8 @@ class LabelPresetResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $layout = $this->layout();
+
         return [
             'id'                  => $this->id,
             'title'               => $this->title,
@@ -32,6 +34,9 @@ class LabelPresetResource extends JsonResource
             'font_size_max'       => $this->font_size_max,
             'font_size_step'      => $this->font_size_step,
             'line_height_factor'  => $this->line_height_factor,
+            'columns'             => $layout['columns'],
+            'rows'                => $layout['rows'],
+            'labels_per_sheet'    => $layout['per_page'],
             'created_at'          => $this->created_at,
             'updated_at'          => $this->updated_at,
             'font'                => new FontResource($this->whenLoaded('font')),
