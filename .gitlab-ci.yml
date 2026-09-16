@@ -78,7 +78,7 @@ build-web:
 # Deploy to k3s
 deploy:
   stage: deploy
-  image: registry.k8s.io/kubectl:v1.31.0
+  image: alpine/k8s:1.31.0
   before_script:
     - mkdir -p /root/.kube
     - echo "$KUBE_CONFIG" > /root/.kube/config
