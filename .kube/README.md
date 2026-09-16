@@ -42,6 +42,7 @@
 ├── api-web.yaml          # Deployment api-web (nginx) + Service api-service:80
 ├── www-deployment.yaml   # Deployment www (Nuxt)
 ├── www-service.yaml      # Service для www
+├── backup-cronjob.yaml   # Ежедневный полный дамп БД во внешний S3
 ├── ingress.yaml          # Ingress для маршрутизации трафика
 ├── php/
 │   └── Dockerfile        # php-fpm образ (Laravel), :9000
@@ -113,6 +114,48 @@ kubectl get pods,services -n home-store
 kubectl get ingress -n home-store
 kubectl logs -n home-store -l app=api-web
 ```
+
+## Бекап и восстановление
+
+### CronJob `db-backup`
+
+Ежедневно в 02:00 (Europe/Moscow) выполняет полный дамп БД и загружает во внешний S3 (beget).
+
+- **initContainer** `postgres:16` → `pg_dump -Fc -Z9` (binary custom-формат, gzip-сжатие)
+- **контейнер** `minio/mc` → загрузка + retention (удаление файлов старше 14 дней)
+
+Расположение дампов:
+```
+s3://58e49e17d3c1-homestore-dev/backups/full/db/daily/db-YYYY-MM-DD.dump
+```
+
+Ручной запуск:
+```bash
+kubectl create job db-backup-manual --from=cronjob/db-backup -n home-store
+kubectl logs -n home-store -l job-name=db-backup-manual -c upload
+```
+
+### Восстановление БД
+
+> **Требования:** postgres 16+, файлы hunspell `ru_ru.dict` и `ru_ru.affix` в `/usr/share/postgresql/16/tsearch_data/`.
+
+```bash
+# 1. Скопировать дамп на машину с postgres (через mc)
+docker run --rm -v /tmp:/out \
+  -e MC_HOST_beget="https://KEY:SECRET@s3.ru1.storage.beget.cloud" \
+  minio/mc cp \
+  beget/58e49e17d3c1-homestore-dev/backups/full/db/daily/db-YYYY-MM-DD.dump \
+  /out/db.dump
+
+# 2. Восстановить в целевую БД (указать --no-owner если роль home_store не существует)
+pg_restore --no-owner -d home_store /out/db.dump
+```
+
+Восстановление проверено: 0 ошибок, 22 таблицы, 100% совпадение строк с продом.
+
+> **Примечание:** если восстанавливается в production, роль `home_store` и словари hunspell уже на месте
+> (монтируются hostPath в postgres pod). `--no-owner` нужен только при полном восстановлении
+> на чистом экземпляре postgres.
 
 ## Масштабирование
 
