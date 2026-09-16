@@ -15,7 +15,13 @@ class Store extends Model
         'title',
         'title_print',
         'parent_id',
+        'user_id',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
+    }
 
     public function parent()
     {

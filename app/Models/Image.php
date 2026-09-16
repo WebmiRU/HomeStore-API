@@ -14,7 +14,13 @@ class Image extends Model
         'original_name',
         'mime',
         'sha256',
+        'user_id',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
+    }
 
     public function labelPresets()
     {

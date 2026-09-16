@@ -12,7 +12,13 @@ class Code extends Model
         'code',
         'store_id',
         'item_id',
+        'user_id',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
+    }
 
     public function store()
     {

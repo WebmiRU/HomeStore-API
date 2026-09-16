@@ -9,7 +9,8 @@ use App\Http\Controllers\LabelPresetController;
 use App\Http\Controllers\OperationController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StoreController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -93,6 +94,20 @@ Route::prefix('label-list')->controller(LabelListController::class)->group(funct
     Route::delete('{labelList}/store/{store}', 'detachStore');
 });
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+Route::prefix('user')->controller(UserProfileController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+Route::prefix('warehouse')->controller(WarehouseController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
 });

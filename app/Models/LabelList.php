@@ -12,7 +12,13 @@ class LabelList extends Model
     protected $fillable = [
         'title',
         'label_preset_id',
+        'user_id',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
+    }
 
     public function labelPreset()
     {

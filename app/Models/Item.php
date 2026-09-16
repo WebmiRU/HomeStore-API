@@ -16,6 +16,7 @@ class Item extends Model
         'title_print',
         'store_id',
         'quantity',
+        'user_id',
     ];
 
     protected function casts(): array
@@ -28,6 +29,11 @@ class Item extends Model
     public function code()
     {
         return $this->hasOne(Code::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
     }
 
     public function store()

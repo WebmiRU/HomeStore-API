@@ -13,6 +13,7 @@ class CodeResource extends JsonResource
 
         return [
             'code'    => $this->code,
+            'user_id' => $this->user_id,
             'type'    => $type,
             'payload' => $type && $this->relationLoaded($type) && $this->{$type}
                 ? $this->{$type}->getAttributes()

@@ -13,6 +13,7 @@ class LabelPresetResource extends JsonResource
 
         return [
             'id'                  => $this->id,
+            'user_id'             => $this->user_id,
             'title'               => $this->title,
             'page_width'          => $this->page_width,
             'page_height'         => $this->page_height,

@@ -30,7 +30,13 @@ class LabelPreset extends Model
         'font_size_max',
         'font_size_step',
         'line_height_factor',
+        'user_id',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(UserProfile::class, 'user_id');
+    }
 
     public function font()
     {
