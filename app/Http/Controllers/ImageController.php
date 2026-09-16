@@ -67,7 +67,7 @@ class ImageController extends Controller
             'weight' => $this->nextWeight($model),
         ]);
 
-        return $model->images()->where('image.id', $image->id)->first();
+        return $model->images()->with('user')->where('image.id', $image->id)->first();
     }
 
     private function nextWeight(Item|Store $model): int
@@ -130,7 +130,7 @@ class ImageController extends Controller
 
     private function withPivot(Item|Store $model, Image $image): Image
     {
-        return $model->images()->where('image.id', $image->id)->first();
+        return $model->images()->with('user')->where('image.id', $image->id)->first();
     }
 
     public function removeForItem(Item $model, Image $image): JsonResponse

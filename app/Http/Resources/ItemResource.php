@@ -16,6 +16,9 @@ class ItemResource extends JsonResource
             'payload' => [
                 'id'          => $this->id,
                 'user_id'     => $this->user_id,
+                'user'        => $this->relationLoaded('user') && $this->user !== null
+                    ? new UserBriefResource($this->user)
+                    : $this->when(false, null),
                 'title'       => $this->title,
                 'title_print' => $this->title_print,
                 'store_id'    => $this->store_id,

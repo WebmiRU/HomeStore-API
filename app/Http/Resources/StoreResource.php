@@ -13,6 +13,9 @@ class StoreResource extends JsonResource
         return [
             'id'          => $this->id,
             'user_id'     => $this->user_id,
+            'user'        => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'title'       => $this->title,
             'title_print' => $this->title_print,
             'parent_id'   => $this->parent_id,

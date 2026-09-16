@@ -12,6 +12,9 @@ class LabelListResource extends JsonResource
         return [
             'id'              => $this->id,
             'user_id'         => $this->user_id,
+            'user'            => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'title'           => $this->title,
             'label_preset_id' => $this->label_preset_id,
             'created_at'      => $this->created_at,

@@ -14,6 +14,9 @@ class LabelPresetResource extends JsonResource
         return [
             'id'                  => $this->id,
             'user_id'             => $this->user_id,
+            'user'                => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'title'               => $this->title,
             'page_width'          => $this->page_width,
             'page_height'         => $this->page_height,

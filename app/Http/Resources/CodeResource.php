@@ -14,6 +14,9 @@ class CodeResource extends JsonResource
         return [
             'code'    => $this->code,
             'user_id' => $this->user_id,
+            'user'    => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'type'    => $type,
             'payload' => $type && $this->relationLoaded($type) && $this->{$type}
                 ? $this->{$type}->getAttributes()

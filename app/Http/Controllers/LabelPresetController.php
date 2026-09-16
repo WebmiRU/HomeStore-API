@@ -14,7 +14,7 @@ class LabelPresetController extends Controller
     public function index(): ResourceCollection
     {
         return LabelPresetResource::collection(
-            LabelPreset::with('font')
+            LabelPreset::with(['font', 'user'])
                 ->orderBy('id')
                 ->paginate()
         );
@@ -22,14 +22,14 @@ class LabelPresetController extends Controller
 
     public function get(LabelPreset $model): LabelPresetResource
     {
-        return new LabelPresetResource($model->load('font'));
+        return new LabelPresetResource($model->load(['font', 'user']));
     }
 
     public function post(StoreLabelPresetRequest $request): JsonResponse
     {
         $preset = LabelPreset::create($request->validated());
 
-        return (new LabelPresetResource($preset->load('font')))
+        return (new LabelPresetResource($preset->load(['font', 'user'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -38,7 +38,7 @@ class LabelPresetController extends Controller
     {
         $model->update($request->validated());
 
-        return new LabelPresetResource($model->load('font'));
+        return new LabelPresetResource($model->load(['font', 'user']));
     }
 
     public function delete(LabelPreset $model): JsonResponse

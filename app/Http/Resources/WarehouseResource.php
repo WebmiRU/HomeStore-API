@@ -13,7 +13,9 @@ class WarehouseResource extends JsonResource
             'id'         => $this->id,
             'title'      => $this->title,
             'user_id'    => $this->user_id,
-            'user'       => new UserProfileResource($this->whenLoaded('user')),
+            'user'       => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -12,6 +12,9 @@ class ImageResource extends JsonResource
         return [
             'id'            => $this->id,
             'user_id'       => $this->user_id,
+            'user'          => $this->relationLoaded('user') && $this->user !== null
+                ? new UserBriefResource($this->user)
+                : $this->when(false, null),
             'url'           => $this->url(),
             'sha256'        => $this->sha256,
             'original_name' => $this->original_name,

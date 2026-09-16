@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Hash;
 
 class UserProfile extends Model
 {
@@ -12,7 +13,24 @@ class UserProfile extends Model
     protected $fillable = [
         'name',
         'email',
+        'password',
     ];
+
+    protected $hidden = [
+        'password',
+    ];
+
+    public function setPasswordAttribute(?string $value): void
+    {
+        if ($value !== null && $value !== '') {
+            $this->attributes['password'] = Hash::make($value);
+        }
+    }
+
+    public function verifyPassword(string $plain): bool
+    {
+        return $this->password !== null && Hash::check($plain, $this->password);
+    }
 
     public function warehouses(): HasMany
     {

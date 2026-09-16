@@ -34,7 +34,7 @@ class CodeController extends Controller
                 . substr($lower, 20);
         }
 
-        $code = Code::with(['store.parent', 'item.store.parent'])
+        $code = Code::with(['store.parent', 'item.store.parent', 'user'])
             ->whereIn('code', $candidates)
             ->first();
 

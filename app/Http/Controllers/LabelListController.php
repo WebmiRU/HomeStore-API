@@ -22,7 +22,7 @@ class LabelListController extends Controller
     public function index(): ResourceCollection
     {
         return LabelListResource::collection(
-            LabelList::with(['labelPreset', 'items.code', 'stores.code'])
+            LabelList::with(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
                 ->orderBy('id')
                 ->paginate()
         );
@@ -31,7 +31,7 @@ class LabelListController extends Controller
     public function all(): ResourceCollection
     {
         return LabelListResource::collection(
-            LabelList::with(['labelPreset', 'items', 'stores'])
+            LabelList::with(['labelPreset.user', 'items', 'stores', 'user', 'items.user', 'stores.user'])
                 ->orderBy('id')
                 ->get()
         );
@@ -40,7 +40,7 @@ class LabelListController extends Controller
     public function get(LabelList $model): LabelListResource
     {
         return new LabelListResource(
-            $model->load(['labelPreset', 'items.code', 'stores.code'])
+            $model->load(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
         );
     }
 
@@ -48,7 +48,7 @@ class LabelListController extends Controller
     {
         $list = LabelList::create($request->validated());
 
-        return (new LabelListResource($list->load(['labelPreset', 'items.code', 'stores.code'])))
+        return (new LabelListResource($list->load(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -58,7 +58,7 @@ class LabelListController extends Controller
         $model->update($request->validated());
 
         return new LabelListResource(
-            $model->load(['labelPreset', 'items.code', 'stores.code'])
+            $model->load(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
         );
     }
 
