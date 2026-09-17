@@ -11,9 +11,6 @@ use App\Models\Item;
 use App\Models\Store;
 use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ImageController extends Controller
 {
@@ -37,35 +34,7 @@ class ImageController extends Controller
 
     private function store(StoreImageRequest $request, Item|Store $model): Image
     {
-        $file = $request->file('file');
-        $sha256 = hash_file('sha256', $file->getRealPath());
-
-        $image = Image::query()->where('sha256', $sha256)->first();
-
-        if ($image === null) {
-            $extension = strtolower((string) $file->getClientOriginalExtension());
-            if ($extension === '') {
-                $extension = strtolower((string) Str::after($file->getMimeType(), '/'));
-            }
-            $path = 'src/' . $sha256 . '.' . $extension;
-
-            Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
-
-            try {
-                $image = Image::create([
-                    'path'          => $path,
-                    'original_name' => $file->getClientOriginalName(),
-                    'mime'          => $file->getMimeType(),
-                    'sha256'        => $sha256,
-                ]);
-            } catch (QueryException $e) {
-                // Параллельная загрузка такого же файла уже создала запись
-                if ($e->getCode() !== '23505') {
-                    throw $e;
-                }
-                $image = Image::query()->where('sha256', $sha256)->firstOrFail();
-            }
-        }
+        $image = Image::fromUploadedFile($request->file('file'));
 
         $model->images()->attach($image->id, [
             'alt'    => null,

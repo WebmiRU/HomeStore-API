@@ -6,26 +6,26 @@ use App\Http\Requests\StoreUserProfileRequest;
 use App\Http\Requests\UpdateUserAvatarRequest;
 use App\Http\Requests\UpdateUserProfileRequest;
 use App\Http\Resources\UserProfileResource;
+use App\Models\Image;
 use App\Models\UserProfile;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class UserProfileController extends Controller
 {
     public function index(): ResourceCollection
     {
         return UserProfileResource::collection(
-            UserProfile::orderBy('id')->paginate()
+            UserProfile::with('avatarImage')->orderBy('id')->paginate()
         );
     }
 
     public function all(): ResourceCollection
     {
         return UserProfileResource::collection(
-            UserProfile::orderBy('id')->get()
+            UserProfile::with('avatarImage')->orderBy('id')->get()
         );
     }
 
@@ -56,24 +56,41 @@ class UserProfileController extends Controller
             abort(403, 'Можно изменить только свой аватар');
         }
 
-        $file = $request->file('file');
-        $sha256 = hash_file('sha256', $file->getRealPath());
-        $extension = strtolower((string) $file->getClientOriginalExtension());
-        if ($extension === '') {
-            $extension = strtolower((string) Str::after($file->getMimeType(), '/'));
-        }
-        $path = 'avatar/' . $sha256 . '.' . $extension;
+        $image = Image::fromUploadedFile($request->file('file'));
 
-        Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
+        $oldAvatarId = $model->avatar_id;
 
-        $oldAvatar = $model->avatar;
-        if ($oldAvatar !== null && $oldAvatar !== $path) {
-            Storage::disk('s3')->delete($oldAvatar);
+        $model->update(['avatar_id' => $image->id]);
+
+        if ($oldAvatarId !== null && $oldAvatarId !== $image->id) {
+            $this->deleteUnusedImage($oldAvatarId);
         }
 
-        $model->update(['avatar' => $path]);
+        return new UserProfileResource($model->load('avatarImage'));
+    }
 
-        return new UserProfileResource($model);
+    private function deleteUnusedImage(int $imageId): void
+    {
+        $image = Image::query()->find($imageId);
+
+        if ($image === null) {
+            return;
+        }
+
+        $inUse = $image->items()->exists()
+            || $image->stores()->exists()
+            || $image->labelPresets()->exists()
+            || UserProfile::query()->where('avatar_id', $imageId)->exists();
+
+        if ($inUse) {
+            return;
+        }
+
+        $path = $image->path;
+
+        $image->delete();
+
+        Storage::disk('s3')->delete($path);
     }
 
     public function delete(UserProfile $model): JsonResponse

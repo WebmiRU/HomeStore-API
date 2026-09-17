@@ -49,7 +49,7 @@
 ├── nginx/
 │   ├── Dockerfile        # nginx образ (статика + proxy на php-fpm), :80
 │   ├── default.conf      # Конфиг nginx для docker-compose (fastcgi → app:9000)
-│   └── kube.conf         # Конфиг nginx для Kubernetes (fastcgi → api-app:9000)
+│   └── kube.conf         # Шаблон nginx для Kubernetes (fastcgi → api-app:9000; S3-прокси миниатюр, envsubst AWS_*)
 └── README.md
 ```
 

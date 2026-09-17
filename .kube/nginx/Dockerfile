@@ -3,7 +3,7 @@ FROM nginx:alpine
 COPY . /var/www/html
 RUN ln -sfn /var/www/html/storage/app/public /var/www/html/public/storage
 
-COPY .kube/nginx/kube.conf /etc/nginx/conf.d/default.conf
+COPY .kube/nginx/kube.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 

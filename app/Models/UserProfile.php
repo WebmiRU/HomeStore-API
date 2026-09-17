@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 
 class UserProfile extends Model
 {
@@ -15,7 +15,7 @@ class UserProfile extends Model
         'name',
         'email',
         'password',
-        'avatar',
+        'avatar_id',
     ];
 
     protected $hidden = [
@@ -34,9 +34,19 @@ class UserProfile extends Model
         return $this->password !== null && Hash::check($plain, $this->password);
     }
 
+    public function avatarImage(): BelongsTo
+    {
+        return $this->belongsTo(Image::class, 'avatar_id');
+    }
+
     public function avatarUrl(): ?string
     {
-        return $this->avatar !== null ? Storage::disk('s3')->url($this->avatar) : null;
+        return $this->avatarImage?->url();
+    }
+
+    public function avatarSha(): ?string
+    {
+        return $this->avatarImage?->sha256;
     }
 
     public function warehouses(): HasMany
