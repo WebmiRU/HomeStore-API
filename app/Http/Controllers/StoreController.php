@@ -21,7 +21,7 @@ class StoreController extends Controller
     public function index(): ResourceCollection
     {
         return StoreResource::collection(
-            Store::with(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])
+            Store::with(['code', 'parent', 'warehouse', 'images', 'user'])
                 ->orderBy('id')
                 ->paginate()
         );
@@ -30,7 +30,7 @@ class StoreController extends Controller
     public function all(): ResourceCollection
     {
         return StoreResource::collection(
-            Store::with(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])
+            Store::with(['code', 'parent', 'warehouse', 'images', 'user'])
                 ->orderBy('id')
                 ->get()
         );
@@ -38,7 +38,7 @@ class StoreController extends Controller
 
     public function get(Store $model): StoreResource
     {
-        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user']));
+        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user']));
     }
 
     public function post(StoreStoreRequest $request): JsonResponse
@@ -65,7 +65,7 @@ class StoreController extends Controller
             return $store;
         });
 
-        return (new StoreResource($store->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user'])))
+        return (new StoreResource($store->load(['code', 'parent', 'warehouse', 'images', 'user'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -95,7 +95,7 @@ class StoreController extends Controller
             $this->bindCodeToStore($model, $code);
         });
 
-        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user', 'images.user']));
+        return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user']));
     }
 
     private function canCreateStore(array $data): bool

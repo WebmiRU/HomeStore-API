@@ -20,7 +20,7 @@ return new class extends Migration
             ]);
         }
 
-        foreach (['code', 'file', 'image', 'item', 'label_list', 'label_preset', 'store', 'warehouse'] as $table) {
+        foreach (['code', 'item', 'label_list', 'label_preset', 'store', 'warehouse'] as $table) {
             DB::table($table)->whereNull('user_id')->update(['user_id' => $user->id]);
         }
     }
@@ -30,7 +30,7 @@ return new class extends Migration
         $user = UserProfile::where('email', 'e.wolf@webmi.ru')->first();
 
         if ($user) {
-            foreach (['code', 'file', 'image', 'item', 'label_list', 'label_preset', 'store', 'warehouse'] as $table) {
+            foreach (['code', 'item', 'label_list', 'label_preset', 'store', 'warehouse'] as $table) {
                 DB::table($table)->where('user_id', $user->id)->update(['user_id' => null]);
             }
         }

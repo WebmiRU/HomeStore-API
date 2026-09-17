@@ -2,15 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\AccessibleByUser;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Image extends Model
 {
-    use AccessibleByUser;
-
     protected $table = 'image';
 
     protected $fillable = [
@@ -18,13 +14,7 @@ class Image extends Model
         'original_name',
         'mime',
         'sha256',
-        'user_id',
     ];
-
-    public function user()
-    {
-        return $this->belongsTo(UserProfile::class, 'user_id');
-    }
 
     public function labelPresets()
     {
@@ -47,22 +37,5 @@ class Image extends Model
     public function url(): string
     {
         return Storage::disk('s3')->url($this->path);
-    }
-
-    protected static function applyAccessibilityScope(Builder $builder, int $userId): void
-    {
-        $builder->where('image.user_id', $userId)
-            ->orWhereExists(function ($q) use ($userId) {
-                $q->selectRaw('1')
-                    ->from('image_m2m_store as p')
-                    ->whereColumn('p.image_id', 'image.id')
-                    ->whereIn('p.store_id', static::accessibleStores($userId));
-            })
-            ->orWhereExists(function ($q) use ($userId) {
-                $q->selectRaw('1')
-                    ->from('image_m2m_item as p')
-                    ->whereColumn('p.image_id', 'image.id')
-                    ->whereIn('p.item_id', static::accessibleItems($userId));
-            });
     }
 }

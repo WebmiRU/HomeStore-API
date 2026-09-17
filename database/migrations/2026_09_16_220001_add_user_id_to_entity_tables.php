@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        foreach (['code', 'file', 'image', 'item', 'label_list', 'label_preset', 'store'] as $table) {
+        foreach (['code', 'item', 'label_list', 'label_preset', 'store'] as $table) {
             Schema::table($table, function (Blueprint $blueprint) {
                 $blueprint->unsignedBigInteger('user_id')->nullable()->index();
                 $blueprint->foreign('user_id')
@@ -22,7 +22,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (['code', 'file', 'image', 'item', 'label_list', 'label_preset', 'store'] as $table) {
+        foreach (['code', 'item', 'label_list', 'label_preset', 'store'] as $table) {
             Schema::table($table, function (Blueprint $blueprint) use ($table) {
                 $blueprint->dropForeign("{$table}_user_id_foreign");
                 $blueprint->dropColumn('user_id');

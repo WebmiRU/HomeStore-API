@@ -54,16 +54,6 @@ class UserProfile extends Model
         return $this->hasMany(Code::class, 'user_id');
     }
 
-    public function files(): HasMany
-    {
-        return $this->hasMany(File::class, 'user_id');
-    }
-
-    public function images(): HasMany
-    {
-        return $this->hasMany(Image::class, 'user_id');
-    }
-
     public function items(): HasMany
     {
         return $this->hasMany(Item::class, 'user_id');
