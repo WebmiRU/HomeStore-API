@@ -19,7 +19,10 @@ class CodeResource extends JsonResource
                 : $this->when(false, null),
             'type'    => $type,
             'payload' => $type && $this->relationLoaded($type) && $this->{$type}
-                ? $this->{$type}->getAttributes()
+                ? array_merge($this->{$type}->getAttributes(), [
+                    'images' => ImageResource::collection($this->{$type}->images)
+                        ->resolve($request),
+                ])
                 : null,
         ];
     }
