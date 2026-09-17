@@ -14,8 +14,9 @@ class StoreUserProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'  => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:user,email'],
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'string', 'email', 'max:255', 'unique:user,email'],
+            'password' => ['required', 'string', 'min:6', 'max:255'],
         ];
     }
 }
