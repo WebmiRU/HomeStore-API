@@ -39,7 +39,7 @@ return new class extends Migration
             $image = DB::table('image')->where('sha256', $sha256)->first();
 
             if ($image === null) {
-                $path = 'src/' . $sha256 . '.' . $extension;
+                $path = 'images/src/' . $sha256 . '.' . $extension;
                 $contents = Storage::disk('s3')->get($avatar);
 
                 if ($contents !== null) {

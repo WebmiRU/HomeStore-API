@@ -33,7 +33,7 @@ class Image extends Model
         if ($extension === '') {
             $extension = strtolower((string) Str::after($file->getMimeType(), '/'));
         }
-        $path = 'src/' . $sha256 . '.' . $extension;
+        $path = 'images/src/' . $sha256 . '.' . $extension;
 
         Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
 
