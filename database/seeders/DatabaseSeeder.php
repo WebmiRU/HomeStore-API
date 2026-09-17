@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
             LabelPresetSeeder::class,
             CodeSeeder::class,
             LabelListSeeder::class,
+            ThumbnailSeeder::class,
         ]);
     }
 }

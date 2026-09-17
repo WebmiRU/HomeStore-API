@@ -20,8 +20,10 @@ RUN rm -f /etc/apt/sources.list.d/*.sources \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \
+        libwebp-dev \
+        libavif-dev \
     && export CFLAGS="-O0 -g0" CXXFLAGS="-O0 -g0" \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif \
     && docker-php-ext-install -j1 \
         pdo_pgsql \
         pgsql \

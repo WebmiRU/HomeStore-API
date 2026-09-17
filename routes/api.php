@@ -10,6 +10,7 @@ use App\Http\Controllers\LabelPresetController;
 use App\Http\Controllers\OperationController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\ThumbnailController;
 use App\Http\Controllers\UserAuthController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\WarehouseController;
@@ -30,6 +31,10 @@ Route::get('/health', fn () => response()->json([
     'status' => 'ok',
     'version' => '1.0.0',
 ]));
+
+Route::get('/image/{thumb}/{hash}', [ThumbnailController::class, 'show'])
+    ->where('thumb', '[A-Za-z0-9_\-]+')
+    ->where('hash', '[0-9a-f]{64}');
 
 Route::post('/login', [UserAuthController::class, 'login'])
     ->middleware('throttle:10,1');
