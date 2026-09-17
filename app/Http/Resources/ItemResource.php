@@ -3,6 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Http\Resources\ImageResource;
+use App\Models\Item;
+use App\Services\AccessService;
+use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,8 +13,16 @@ class ItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $rights = $this->resource instanceof Item
+            ? app(AccessService::class)->rightsFor($this->resource)
+            : [];
+
         return [
             'type'    => 'item',
+            'rights'  => $rights,
+            'is_owner'=> $this->user_id !== null && (int) $this->user_id === (int) CurrentUser::id(),
+            'can_edit'=> in_array('edit', $rights, true),
+            'can_delete' => in_array('delete', $rights, true),
             'code'    => $this->whenLoaded('code', fn() => $this->code?->code),
             'payload' => [
                 'id'          => $this->id,

@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Item;
+use App\Models\Store;
+use App\Services\AccessService;
+use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -109,7 +113,25 @@ class SearchController extends Controller
             ->orderBy('rank', 'desc')
             ->orderBy('sim', 'desc')
             ->get()
-            ->map(fn($row) => tap($row, fn($r) => $r->payload = json_decode($r->payload)));
+            ->map(function ($row) {
+                $row->payload = json_decode($row->payload);
+
+                $model = $row->type === 'item'
+                    ? Item::find($row->payload->id)
+                    : Store::find($row->payload->id);
+
+                $rights = $model !== null
+                    ? app(AccessService::class)->rightsFor($model)
+                    : [];
+
+                $row->payload->rights = $rights;
+                $row->payload->is_owner = $model?->user_id !== null
+                    && (int) $model->user_id === (int) CurrentUser::id();
+                $row->payload->can_edit = in_array('edit', $rights, true);
+                $row->payload->can_delete = in_array('delete', $rights, true);
+
+                return $row;
+            });
 
         return response()->json(['data' => $results]);
     }
