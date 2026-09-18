@@ -35,6 +35,14 @@ trait Searchable
             [implode(' | ', $tsqueryParts)]
         )->q;
 
+        // Morphological roots query: reduces derived/inflected forms to shared
+        // roots (оцинковка/оцинкованный/оцинк → оцинк/цинк), stored in the
+        // "morph_vector" generated column.
+        $morphQuery = DB::selectOne(
+            "SELECT public.morph_tsquery(?) AS q",
+            [$q]
+        )->q;
+
         // Check if ALL query words are recognized by hunspell.
         // If a word is not in the dictionary, it's likely a typo
         // → use pure similarity for typo tolerance.
@@ -47,10 +55,12 @@ trait Searchable
         $table = $query->getModel()->getTable();
 
         return $query
-            ->where(function (Builder $query) use ($tsquery, $q, $table, $words, $allRecognized) {
+            ->where(function (Builder $query) use ($tsquery, $morphQuery, $q, $table, $words, $allRecognized) {
                 $query
                     // Primary: FTS with prefix matching (hunspell dictionary)
-                    ->whereRaw("{$table}.search_vector @@ ?", [$tsquery]);
+                    ->whereRaw("{$table}.search_vector @@ ?", [$tsquery])
+                    // Morphological roots: unifies derived forms (оцинк/оцинковка/оцинкованный)
+                    ->orWhereRaw("{$table}.morph_vector @@ ?", [$morphQuery]);
                 // Similarity fallback for derivational variants and typos
                 if (mb_strlen($q) >= 6) {
                     if ($allRecognized) {
@@ -70,8 +80,8 @@ trait Searchable
                     $query->orWhereRaw("{$table}.title ILIKE ?", ['%' . $word . '%']);
                 }
             })
-            // FTS matches rank highest, similarity-only matches come after
-            ->orderByRaw("ts_rank({$table}.search_vector, ?) DESC NULLS LAST", [$tsquery])
+            // FTS/morph matches rank highest, similarity-only matches come after
+            ->orderByRaw("GREATEST(ts_rank({$table}.search_vector, ?), ts_rank({$table}.morph_vector, ?)) DESC NULLS LAST", [$tsquery, $morphQuery])
             ->orderByRaw("similarity({$table}.title, ?) DESC", [$q]);
     }
 }

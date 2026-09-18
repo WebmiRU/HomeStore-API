@@ -20,6 +20,11 @@ class SearchController extends Controller
             return response()->json(['data' => []]);
         }
 
+        // Punctuation-only queries would crash to_tsquery → return nothing.
+        if (!preg_match('/[\p{L}\p{N}]/u', $q)) {
+            return response()->json(['data' => []]);
+        }
+
         $words = explode(' ', $q);
 
         // Build tsquery: prefix (:*) only for words ≥ 5 chars to avoid
@@ -31,6 +36,14 @@ class SearchController extends Controller
         $tsquery = DB::selectOne(
             "SELECT to_tsquery('russian_hunspell', ?) AS q",
             [implode(' | ', $tsqueryParts)]
+        )->q;
+
+        // Morphological roots query (stem-like matching): reduces derived forms
+        // to a shared root (оцинковка/оцинкованный/оцинк → оцинк, цинк),
+        // so any inflected/derived form matches the same items.
+        $morphQuery = DB::selectOne(
+            "SELECT public.morph_tsquery(?) AS q",
+            [$q]
         )->q;
 
         $useSimilarity = mb_strlen($q) >= 6;
@@ -50,7 +63,7 @@ class SearchController extends Controller
             ->withoutGlobalScope('accessibleByUser')
             ->selectRaw("
                 'item' as type,
-                ts_rank(search_vector, ?) as rank,
+                GREATEST(ts_rank(search_vector, ?), ts_rank(morph_vector, ?)) as rank,
                 similarity(title, ?) as sim,
                 json_build_object(
                     'id', id,
@@ -60,10 +73,11 @@ class SearchController extends Controller
                     'created_at', created_at,
                     'updated_at', updated_at
                 ) as payload
-            ", [$tsquery, $q])
-            ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
+            ", [$tsquery, $morphQuery, $q])
+            ->where(function ($query) use ($tsquery, $morphQuery, $q, $words, $useSimilarity, $allRecognized) {
                 $query
-                    ->whereRaw('search_vector @@ ?', [$tsquery]);
+                    ->whereRaw('search_vector @@ ?', [$tsquery])
+                    ->orWhereRaw('morph_vector @@ ?', [$morphQuery]);
                 if ($useSimilarity) {
                     if ($allRecognized) {
                         $query->orWhereRaw(
@@ -85,7 +99,7 @@ class SearchController extends Controller
             ->withoutGlobalScope('accessibleByUser')
             ->selectRaw("
                 'store' as type,
-                ts_rank(search_vector, ?) as rank,
+                GREATEST(ts_rank(search_vector, ?), ts_rank(morph_vector, ?)) as rank,
                 similarity(title, ?) as sim,
                 json_build_object(
                     'id', id,
@@ -95,10 +109,11 @@ class SearchController extends Controller
                     'created_at', created_at,
                     'updated_at', updated_at
                 ) as payload
-            ", [$tsquery, $q])
-            ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
+            ", [$tsquery, $morphQuery, $q])
+            ->where(function ($query) use ($tsquery, $morphQuery, $q, $words, $useSimilarity, $allRecognized) {
                 $query
-                    ->whereRaw('search_vector @@ ?', [$tsquery]);
+                    ->whereRaw('search_vector @@ ?', [$tsquery])
+                    ->orWhereRaw('morph_vector @@ ?', [$morphQuery]);
                 if ($useSimilarity) {
                     if ($allRecognized) {
                         $query->orWhereRaw(
