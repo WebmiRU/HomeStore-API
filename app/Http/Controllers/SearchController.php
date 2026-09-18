@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ImageResource;
 use App\Models\Item;
 use App\Models\Store;
 use App\Services\AccessService;
@@ -150,8 +151,8 @@ class SearchController extends Controller
                 $row->payload = json_decode($row->payload);
 
                 $model = $row->type === 'item'
-                    ? Item::find($row->payload->id)
-                    : Store::find($row->payload->id);
+                    ? Item::with('images')->find($row->payload->id)
+                    : Store::with('images')->find($row->payload->id);
 
                 $rights = $model !== null
                     ? app(AccessService::class)->rightsFor($model)
@@ -162,6 +163,9 @@ class SearchController extends Controller
                     && (int) $model->user_id === (int) CurrentUser::id();
                 $row->payload->can_edit = in_array('edit', $rights, true);
                 $row->payload->can_delete = in_array('delete', $rights, true);
+                $row->payload->images = $model !== null
+                    ? ImageResource::collection($model->images)->resolve()
+                    : [];
 
                 return $row;
             });
