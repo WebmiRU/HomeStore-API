@@ -44,7 +44,10 @@ class SearchController extends Controller
             ['{' . implode(',', $words) . '}']
         )->ok;
 
-        $results = DB::query()
+        $userId = (int) CurrentUser::id();
+
+        $itemQuery = Item::query()
+            ->withoutGlobalScope('accessibleByUser')
             ->selectRaw("
                 'item' as type,
                 ts_rank(search_vector, ?) as rank,
@@ -58,7 +61,6 @@ class SearchController extends Controller
                     'updated_at', updated_at
                 ) as payload
             ", [$tsquery, $q])
-            ->from('item')
             ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
                 $query
                     ->whereRaw('search_vector @@ ?', [$tsquery]);
@@ -76,40 +78,46 @@ class SearchController extends Controller
                     $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
                 }
             })
-            ->unionAll(
-                DB::query()
-                    ->selectRaw("
-                        'store' as type,
-                        ts_rank(search_vector, ?) as rank,
-                        similarity(title, ?) as sim,
-                        json_build_object(
-                            'id', id,
-                            'title', title,
-                            'title_print', title_print,
-                            'parent_id', parent_id,
-                            'created_at', created_at,
-                            'updated_at', updated_at
-                        ) as payload
-                    ", [$tsquery, $q])
-                    ->from('store')
-                    ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
-                        $query
-                            ->whereRaw('search_vector @@ ?', [$tsquery]);
-                        if ($useSimilarity) {
-                            if ($allRecognized) {
-                                $query->orWhereRaw(
-                                    "similarity(title, ?) > 0.15 AND title ILIKE '%' || left(?, 5) || '%'",
-                                    [$q, $q]
-                                );
-                            } else {
-                                $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
-                            }
-                        }
-                        foreach ($words as $word) {
-                            $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
-                        }
-                    })
-            )
+            ->accessibleTo($userId)
+            ->toBase();
+
+        $storeQuery = Store::query()
+            ->withoutGlobalScope('accessibleByUser')
+            ->selectRaw("
+                'store' as type,
+                ts_rank(search_vector, ?) as rank,
+                similarity(title, ?) as sim,
+                json_build_object(
+                    'id', id,
+                    'title', title,
+                    'title_print', title_print,
+                    'parent_id', parent_id,
+                    'created_at', created_at,
+                    'updated_at', updated_at
+                ) as payload
+            ", [$tsquery, $q])
+            ->where(function ($query) use ($tsquery, $q, $words, $useSimilarity, $allRecognized) {
+                $query
+                    ->whereRaw('search_vector @@ ?', [$tsquery]);
+                if ($useSimilarity) {
+                    if ($allRecognized) {
+                        $query->orWhereRaw(
+                            "similarity(title, ?) > 0.15 AND title ILIKE '%' || left(?, 5) || '%'",
+                            [$q, $q]
+                        );
+                    } else {
+                        $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
+                    }
+                }
+                foreach ($words as $word) {
+                    $query->orWhereRaw('title ILIKE ?', ['%' . $word . '%']);
+                }
+            })
+            ->accessibleTo($userId)
+            ->toBase();
+
+        $results = $itemQuery
+            ->unionAll($storeQuery)
             ->orderBy('rank', 'desc')
             ->orderBy('sim', 'desc')
             ->get()

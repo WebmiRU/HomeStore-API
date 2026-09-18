@@ -62,6 +62,13 @@ class AccessService
             return [];
         }
 
+        // Владелец склада имеет полные права на все внутри.
+        foreach ($warehouses as $w) {
+            if ((int) $w->user_id === (int) $user->id) {
+                return ['view', 'create', 'edit', 'delete'];
+            }
+        }
+
         $ids = array_map(fn (Warehouse $w) => $w->id, $warehouses);
         $owners = array_values(array_unique(array_map(fn (Warehouse $w) => $w->user_id, $warehouses)));
 

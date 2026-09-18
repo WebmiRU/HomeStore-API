@@ -44,6 +44,18 @@ trait AccessibleByUser
     }
 
     /**
+     * Локальный scope: ограничить выборку доступными пользователю сущностями.
+     * В отличие от глобального scope условия оборачиваются в скобки, поэтому
+     * его можно безопасно комбинировать с другими where.
+     */
+    public static function scopeAccessibleTo(Builder $builder, int $userId): void
+    {
+        $builder->where(function (Builder $q) use ($userId) {
+            static::applyAccessibilityScope($q, $userId);
+        });
+    }
+
+    /**
      * Подзапрос «владельцы складов, чей грант view распространяется на
      * конкретный склад текущего запроса» (конкретный или все склады владельца).
      */
