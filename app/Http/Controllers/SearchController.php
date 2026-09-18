@@ -85,7 +85,14 @@ class SearchController extends Controller
                             [$q, $q]
                         );
                     } else {
-                        $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
+                        // Unknown word (likely typo): require a real contiguous
+                        // substring match (word_similarity), not just a few shared
+                        // trigrams — e.g. "прессшайбой" ≠ "предмет 1" (0.25),
+                        // but "гайкн" ≈ "Гайка" (0.67).
+                        $query->orWhereRaw(
+                            'similarity(title, ?) > 0.15 AND word_similarity(?, title) > 0.4',
+                            [$q, $q]
+                        );
                     }
                 }
                 foreach ($words as $word) {
@@ -121,7 +128,10 @@ class SearchController extends Controller
                             [$q, $q]
                         );
                     } else {
-                        $query->orWhereRaw('similarity(title, ?) > 0.15', [$q]);
+                        $query->orWhereRaw(
+                            'similarity(title, ?) > 0.15 AND word_similarity(?, title) > 0.4',
+                            [$q, $q]
+                        );
                     }
                 }
                 foreach ($words as $word) {
