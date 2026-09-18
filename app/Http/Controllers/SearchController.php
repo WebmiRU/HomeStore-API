@@ -151,13 +151,14 @@ class SearchController extends Controller
                 $row->payload = json_decode($row->payload);
 
                 $model = $row->type === 'item'
-                    ? Item::with('images')->find($row->payload->id)
-                    : Store::with('images')->find($row->payload->id);
+                    ? Item::with(['images', 'code'])->find($row->payload->id)
+                    : Store::with(['images', 'code'])->find($row->payload->id);
 
                 $rights = $model !== null
                     ? app(AccessService::class)->rightsFor($model)
                     : [];
 
+                $row->payload->code = $model?->code?->code;
                 $row->payload->rights = $rights;
                 $row->payload->is_owner = $model?->user_id !== null
                     && (int) $model->user_id === (int) CurrentUser::id();
