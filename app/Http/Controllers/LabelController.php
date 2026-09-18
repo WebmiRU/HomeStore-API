@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AuditAction;
+use App\Services\AuditLogService;
 use App\Services\Pdf\LabelPdfService;
+use App\Support\CurrentUser;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 
 class LabelController extends Controller
 {
     public function __construct(
         private readonly LabelPdfService $labelService,
+        private readonly AuditLogService $logs,
     ) {}
 
     /**
@@ -46,7 +49,7 @@ class LabelController extends Controller
      *   }
      * }
      */
-    public function generate(Request $request): Response
+    public function generate(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         $validator = Validator::make($request->all(), [
             'labels'              => ['required', 'array', 'min:1'],
@@ -67,6 +70,14 @@ class LabelController extends Controller
         $options = $request->input('options', []);
 
         $pdf = $this->labelService->generate($labels, $options);
+
+        $this->logs->record(
+            AuditAction::LabelGenerate,
+            null,
+            null,
+            (int) CurrentUser::id(),
+            ['count' => count($labels)],
+        );
 
         return response($pdf->Output('labels.pdf', 'S'), 200, [
             'Content-Type'        => 'application/pdf',

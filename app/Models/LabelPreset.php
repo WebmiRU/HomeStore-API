@@ -53,6 +53,11 @@ class LabelPreset extends Model
             ->withTimestamps();
     }
 
+    public function labelLists()
+    {
+        return $this->hasMany(LabelList::class);
+    }
+
     /**
      * Сколько ячеек помещается на лист по горизонтали, по вертикали и всего.
      */

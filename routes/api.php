@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccessController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CodeController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\ItemController;
@@ -51,6 +52,12 @@ Route::prefix('access')->controller(AccessController::class)->group(function ():
     Route::post('/', 'post');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
+});
+
+Route::prefix('audit-log')->controller(AuditLogController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('stats', 'stats');
+    Route::get('balance', 'balance');
 });
 
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {

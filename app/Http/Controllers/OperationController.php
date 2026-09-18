@@ -2,22 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AuditAction;
 use App\Http\Requests\StoreOperationRequest;
 use App\Models\Code;
 use App\Models\Item;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OperationController extends Controller
 {
+    public function __construct(private readonly AuditLogService $logs)
+    {
+    }
+
     public function store(StoreOperationRequest $request): JsonResponse
     {
         $validated = $request->validated();
         $type = $validated['type'];
         $payload = $validated['payload'];
 
-        DB::transaction(function () use ($type, $payload): void {
+        $appliedRows = [];
+
+        DB::transaction(function () use ($type, $payload, &$appliedRows): void {
             foreach ($payload as $row) {
                 $code = $this->findCode($row['code']);
 
@@ -52,20 +60,55 @@ class OperationController extends Controller
                     ]);
                 }
 
+                $before = (int) $item->quantity;
+                $delta = (int) $row['quantity'];
+
                 if ($type === 'operation.replenish') {
-                    $item->increment('quantity', $row['quantity']);
-                    continue;
+                    $item->increment('quantity', $delta);
+                    $after = $before + $delta;
+                } else {
+                    if ($item->quantity < $delta) {
+                        throw ValidationException::withMessages([
+                            'payload' => [sprintf('Недостаточно количества у предмета "%s"', $item->title)],
+                        ]);
+                    }
+
+                    $item->decrement('quantity', $delta);
+                    $after = $before - $delta;
                 }
 
-                if ($item->quantity < $row['quantity']) {
-                    throw ValidationException::withMessages([
-                        'payload' => [sprintf('Недостаточно количества у предмета "%s"', $item->title)],
-                    ]);
-                }
-
-                $item->decrement('quantity', $row['quantity']);
+                $appliedRows[] = [
+                    'code'    => $row['code'],
+                    'item_id' => $item->id,
+                    'title'   => $item->title,
+                    'delta'   => $delta,
+                    'before'  => $before,
+                    'after'   => $after,
+                    'owner_id'=> $item->user_id,
+                ];
             }
         });
+
+        // Журнал операций: отдельная запись на каждый предмет (видимость — владелец предмета).
+        $action = $type === 'operation.replenish'
+            ? AuditAction::OperationReplenish
+            : AuditAction::OperationWriteoff;
+
+        foreach ($appliedRows as $appliedRow) {
+            $this->logs->record(
+                $action,
+                'item_id',
+                (int) $appliedRow['item_id'],
+                (int) ($appliedRow['owner_id'] ?? 0),
+                [
+                    'code'   => $appliedRow['code'],
+                    'title'  => $appliedRow['title'],
+                    'delta'  => $appliedRow['delta'],
+                    'before' => $appliedRow['before'],
+                    'after'  => $appliedRow['after'],
+                ],
+            );
+        }
 
         return response()->json($validated);
     }

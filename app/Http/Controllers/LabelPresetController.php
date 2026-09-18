@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreLabelPresetRequest;
 use App\Http\Requests\UpdateLabelPresetRequest;
 use App\Http\Resources\LabelPresetResource;
+use App\Models\LabelList;
 use App\Models\LabelPreset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class LabelPresetController extends Controller
 {
@@ -43,7 +45,15 @@ class LabelPresetController extends Controller
 
     public function delete(LabelPreset $model): JsonResponse
     {
-        $model->delete();
+        // Удаляем дочерние списки через Eloquent, чтобы обзерверы записали
+        // label_list.deleted в журнал (каскад на уровне БД их бы пропустил).
+        DB::transaction(function () use ($model): void {
+            foreach ($model->labelLists as $labelList) {
+                $labelList->delete();
+            }
+
+            $model->delete();
+        });
 
         return response()->json(null, 204);
     }
