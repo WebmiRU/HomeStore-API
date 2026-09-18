@@ -19,6 +19,7 @@ class Store extends Model
         'title_print',
         'parent_id',
         'warehouse_id',
+        'warehouse_root_id',
         'user_id',
     ];
 
@@ -72,8 +73,15 @@ class Store extends Model
     {
         $builder->where('store.user_id', $userId)
             ->orWhere(function (Builder $q) use ($userId) {
-                $q->whereNotNull('store.warehouse_id')
-                    ->whereIn('store.warehouse_id', static::accessibleWarehouses($userId));
+                $q->whereNotNull('store.warehouse_root_id')
+                    ->whereIn('store.warehouse_root_id', static::accessibleWarehouses($userId));
             });
+    }
+
+    public function rootWarehouse(): ?Warehouse
+    {
+        $id = $this->warehouse_root_id ?? $this->warehouse_id;
+
+        return $id !== null ? Warehouse::find($id) : null;
     }
 }

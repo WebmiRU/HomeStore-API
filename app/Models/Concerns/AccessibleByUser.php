@@ -24,6 +24,17 @@ trait AccessibleByUser
             if ($model->user_id === null && CurrentUser::id() !== null) {
                 $model->user_id = CurrentUser::id();
             }
+
+            // Для хранилищ наследуем корневой склад из родительской цепочки.
+            if ($model instanceof \App\Models\Store) {
+                if ($model->parent_id !== null && $model->parent) {
+                    $model->warehouse_root_id = $model->parent->warehouse_root_id
+                        ?? $model->parent->warehouse_id
+                        ?? null;
+                } else {
+                    $model->warehouse_root_id = $model->warehouse_id;
+                }
+            }
         });
 
         static::addGlobalScope('accessibleByUser', function (Builder $builder) {
@@ -101,8 +112,8 @@ trait AccessibleByUser
                 ->where(function ($q) use ($userId) {
                     $q->where('store.user_id', $userId)
                         ->orWhere(function ($q) use ($userId) {
-                            $q->whereNotNull('store.warehouse_id')
-                                ->whereIn('store.warehouse_id', static::accessibleWarehouses($userId));
+                            $q->whereNotNull('store.warehouse_root_id')
+                                ->whereIn('store.warehouse_root_id', static::accessibleWarehouses($userId));
                         });
                 });
         };

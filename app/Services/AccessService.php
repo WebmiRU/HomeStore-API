@@ -102,33 +102,40 @@ class AccessService
         }
 
         if ($model instanceof Store) {
-            return $model->warehouse ? [$model->warehouse] : [];
+            $w = $model->rootWarehouse();
+
+            return $w ? [$w] : [];
         }
 
         if ($model instanceof Item) {
-            $store = $model->store;
+            $w = $model->store?->rootWarehouse();
 
-            return $store && $store->warehouse ? [$store->warehouse] : [];
+            return $w ? [$w] : [];
         }
 
         if ($model instanceof Code) {
             $store = $model->store ?: ($model->item?->store);
+            $w = $store?->rootWarehouse();
 
-            return $store && $store->warehouse ? [$store->warehouse] : [];
+            return $w ? [$w] : [];
         }
 
         if ($model instanceof Image) {
             $result = [];
 
             foreach ($model->stores as $store) {
-                if ($store->warehouse) {
-                    $result[] = $store->warehouse;
+                $w = $store->rootWarehouse();
+
+                if ($w) {
+                    $result[] = $w;
                 }
             }
 
             foreach ($model->items as $item) {
-                if ($item->store && $item->store->warehouse) {
-                    $result[] = $item->store->warehouse;
+                $w = $item->store?->rootWarehouse();
+
+                if ($w) {
+                    $result[] = $w;
                 }
             }
 
