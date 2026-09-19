@@ -34,12 +34,18 @@ class AuditLogController extends Controller
     }
 
     /**
-     * Агрегаты для графиков. Скоуп по владельцу, group_by — сущность/действие/день.
+     * Агрегаты для графиков. Скоуп по владельцу.
+     *
+     * group_by (можно комбинировать через запятую):
+     *   day                 — активность по времени (bucket = день/час);
+     *   action | entity     — суммарные итоги за период по действиям/объектам;
+     *   day,action          — матрица «время × действие» для stacked-графиков;
+     *   day,entity          — матрица «время × объект».
      */
     public function stats(Request $request): JsonResponse
     {
         $validated = Validator::make($request->all(), [
-            'group_by'    => ['required', 'string', 'in:action,entity,day'],
+            'group_by'    => ['required', 'string'],
             'granularity' => ['sometimes', 'string', 'in:hour,day'],
             'date_from'   => ['sometimes', 'date', 'before_or_equal:date_to'],
             'date_to'     => ['sometimes', 'date', 'after_or_equal:date_from'],
@@ -47,7 +53,25 @@ class AuditLogController extends Controller
             'entity_id'   => ['sometimes', 'integer', 'min:1'],
         ])->validated();
 
-        $groupBy = $validated['group_by'];
+        $parts = array_values(array_unique(array_map('trim', explode(',', (string) $validated['group_by']))));
+        sort($parts);
+
+        abort_if($parts === [], 422, 'group_by не может быть пустым');
+
+        foreach ($parts as $part) {
+            abort_unless(in_array($part, ['action', 'entity', 'day'], true), 422, "Неизвестная группировка: {$part}");
+        }
+        // Нельзя группировать одновременно по действиям и по объектам.
+        abort_if(
+            in_array('action', $parts, true) && in_array('entity', $parts, true),
+            422,
+            'Нельзя группировать одновременно по действиям и по объектам'
+        );
+
+        $byDay = in_array('day', $parts, true);
+        $byAction = in_array('action', $parts, true);
+        $byKey = $byAction || in_array('entity', $parts, true);
+
         $granularity = $validated['granularity'] ?? 'day';
 
         $query = AuditLog::query();
@@ -56,22 +80,17 @@ class AuditLogController extends Controller
         $selects = [];
         $group = [];
 
-        $truncated = $granularity === 'hour' ? 'hour' : 'day';
-
-        // Разбивка по времени (bucket) нужна только для «Активности за период».
-        // Для «по действиям»/«по объектам» считаются суммарные итоги за период:
-        // иначе каждая строка вида (день, действие) дублирует одни и те же
-        // действия и объекты по всем дням периода.
-        if ($groupBy === 'day') {
+        // Бакет по времени — для «Активности за период» (group_by=day) и для
+        // матриц «время × действие/объект». Агрегаты без дня (action/entity)
+        // дают суммарные итоги за выбранный период.
+        if ($byDay) {
+            $truncated = $granularity === 'hour' ? 'hour' : 'day';
             $selects[] = "date_trunc('" . $truncated . "', created_at) AS bucket";
             $group[] = 'bucket';
         }
 
-        if ($groupBy === 'action') {
-            $selects[] = 'action AS key';
-            $group[] = 'action';
-        } elseif ($groupBy === 'entity') {
-            $selects[] = $this->entityCaseExpression().' AS key';
+        if ($byKey) {
+            $selects[] = $byAction ? 'action AS key' : $this->entityCaseExpression().' AS key';
             $group[] = 'key';
         }
 
@@ -81,15 +100,15 @@ class AuditLogController extends Controller
             ->selectRaw(implode(', ', $selects))
             ->groupBy($group)
             ->get()
-            ->map(function ($row) use ($granularity, $groupBy) {
+            ->map(function ($row) use ($granularity, $byDay, $byKey) {
                 $bucket = null;
-                if ($groupBy === 'day' && $row->bucket !== null) {
+                if ($byDay && $row->bucket !== null) {
                     $bucket = $granularity === 'hour'
                         ? substr((string) $row->bucket, 0, 13).':00'
                         : substr((string) $row->bucket, 0, 10);
                 }
                 // При group_by=day «ключ» не нужен — это единый ряд активности.
-                $key = $groupBy === 'day' ? null : $row->key;
+                $key = $byKey ? $row->key : null;
 
                 return [
                     'bucket' => $bucket,
@@ -99,7 +118,7 @@ class AuditLogController extends Controller
             });
 
         // Хронология — по датам; итоги по действиям/объектам — по убыванию.
-        $rows = $groupBy === 'day'
+        $rows = $byDay
             ? $rows->sortBy('bucket')
             : $rows->sortByDesc('count');
 
