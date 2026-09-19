@@ -57,8 +57,15 @@ class AuditLogController extends Controller
         $group = [];
 
         $truncated = $granularity === 'hour' ? 'hour' : 'day';
-        $selects[] = "date_trunc('" . $truncated . "', created_at) AS bucket";
-        $group[] = 'bucket';
+
+        // Разбивка по времени (bucket) нужна только для «Активности за период».
+        // Для «по действиям»/«по объектам» считаются суммарные итоги за период:
+        // иначе каждая строка вида (день, действие) дублирует одни и те же
+        // действия и объекты по всем дням периода.
+        if ($groupBy === 'day') {
+            $selects[] = "date_trunc('" . $truncated . "', created_at) AS bucket";
+            $group[] = 'bucket';
+        }
 
         if ($groupBy === 'action') {
             $selects[] = 'action AS key';
@@ -73,14 +80,13 @@ class AuditLogController extends Controller
         $rows = $query
             ->selectRaw(implode(', ', $selects))
             ->groupBy($group)
-            ->orderBy('bucket')
             ->get()
             ->map(function ($row) use ($granularity, $groupBy) {
-                $bucket = $row->bucket;
-                if ($bucket !== null) {
+                $bucket = null;
+                if ($groupBy === 'day' && $row->bucket !== null) {
                     $bucket = $granularity === 'hour'
-                        ? substr((string) $bucket, 0, 13).':00'
-                        : substr((string) $bucket, 0, 10);
+                        ? substr((string) $row->bucket, 0, 13).':00'
+                        : substr((string) $row->bucket, 0, 10);
                 }
                 // При group_by=day «ключ» не нужен — это единый ряд активности.
                 $key = $groupBy === 'day' ? null : $row->key;
@@ -92,7 +98,12 @@ class AuditLogController extends Controller
                 ];
             });
 
-        return response()->json(['data' => $rows]);
+        // Хронология — по датам; итоги по действиям/объектам — по убыванию.
+        $rows = $groupBy === 'day'
+            ? $rows->sortBy('bucket')
+            : $rows->sortByDesc('count');
+
+        return response()->json(['data' => $rows->values()]);
     }
 
     /**
