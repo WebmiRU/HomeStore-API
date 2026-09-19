@@ -24,67 +24,115 @@ class OperationController extends Controller
         $payload = $validated['payload'];
 
         $appliedRows = [];
+        $prepared = [];
 
-        DB::transaction(function () use ($type, $payload, &$appliedRows): void {
+        DB::transaction(function () use ($type, $payload, &$appliedRows, &$prepared): void {
+            // Проход 1: проверяем ВСЕ строки и собираем все проблемы разом,
+            // чтобы операция не «падала» с одним сообщением по первой же строке.
+            $errors = [];
+
             foreach ($payload as $row) {
-                $code = $this->findCode($row['code']);
+                $found = $this->findCode($row['code']);
 
-                if (!$code) {
-                    throw ValidationException::withMessages([
-                        'payload' => [sprintf('Код "%s" не найден', $row['code'])],
-                    ]);
+                if (!$found) {
+                    $errors[] = sprintf('Код "%s" не найден или недоступен', $row['code']);
+                    continue;
                 }
 
-                if ($code->store_id !== null) {
-                    $store = $code->store;
-                    throw ValidationException::withMessages([
-                        'payload' => [sprintf(
-                            'Хранилище "%s" нельзя %s',
-                            $store?->title ?? $row['code'],
-                            $type === 'operation.replenish' ? 'пополнить' : 'списать'
-                        )],
-                    ]);
+                if ($found->store_id !== null) {
+                    $store = $found->store;
+                    $errors[] = sprintf(
+                        'Хранилище "%s" нельзя %s',
+                        $store?->title ?? $row['code'],
+                        $type === 'operation.replenish' ? 'пополнить' : 'списать'
+                    );
+                    continue;
                 }
 
-                $item = $code->item;
+                $item = $found->item;
 
                 if (!$item) {
-                    throw ValidationException::withMessages([
-                        'payload' => [sprintf('Код "%s" не привязан к предмету', $row['code'])],
-                    ]);
+                    $errors[] = sprintf('Код "%s" не привязан к предмету', $row['code']);
+                    continue;
                 }
 
+                $delta = (int) $row['quantity'];
+
+                if ($type === 'operation.writeoff') {
+                    if ($item->quantity !== null && (int) $item->quantity < $delta) {
+                        $errors[] = sprintf(
+                            'Недостаточно количества у предмета "%s" (в наличии %d)',
+                            $item->title,
+                            (int) $item->quantity
+                        );
+                        continue;
+                    }
+
+                    if ($item->quantity === null && $delta > 1) {
+                        $errors[] = sprintf('У предмета "%s" один экземпляр', $item->title);
+                        continue;
+                    }
+                }
+
+                $prepared[$row['code']] = ['code' => $found, 'item' => $item, 'delta' => $delta];
+            }
+
+            if ($errors !== []) {
+                throw ValidationException::withMessages([
+                    'payload' => $errors,
+                ]);
+            }
+
+            // Проход 2: применение уже проверенных строк.
+            foreach ($prepared as $code => $entry) {
+                $item = $entry['item'];
+                $delta = $entry['delta'];
+
                 if ($item->quantity === null) {
-                    throw ValidationException::withMessages([
-                        'payload' => [sprintf('У предмета "%s" нет количества', $item->title)],
-                    ]);
+                    // Предмет без количественного учёта (единичный экземпляр):
+                    // числится как «один в наличии», после операции переводится
+                    // в учитываемое количество.
+                    $before = 1;
+
+                    if ($type === 'operation.replenish') {
+                        $after = $before + $delta;
+                        $item->update(['quantity' => $after]);
+                    } else {
+                        $after = $before - $delta;
+                        $item->update(['quantity' => $after]);
+                    }
+
+                    $appliedRows[] = [
+                        'code'     => $code,
+                        'item_id'  => $item->id,
+                        'title'    => $item->title,
+                        'delta'    => $delta,
+                        'before'   => $before,
+                        'after'    => $after,
+                        'owner_id' => $item->user_id,
+                    ];
+
+                    continue;
                 }
 
                 $before = (int) $item->quantity;
-                $delta = (int) $row['quantity'];
 
                 if ($type === 'operation.replenish') {
                     $item->increment('quantity', $delta);
                     $after = $before + $delta;
                 } else {
-                    if ($item->quantity < $delta) {
-                        throw ValidationException::withMessages([
-                            'payload' => [sprintf('Недостаточно количества у предмета "%s"', $item->title)],
-                        ]);
-                    }
-
                     $item->decrement('quantity', $delta);
                     $after = $before - $delta;
                 }
 
                 $appliedRows[] = [
-                    'code'    => $row['code'],
-                    'item_id' => $item->id,
-                    'title'   => $item->title,
-                    'delta'   => $delta,
-                    'before'  => $before,
-                    'after'   => $after,
-                    'owner_id'=> $item->user_id,
+                    'code'     => $code,
+                    'item_id'  => $item->id,
+                    'title'    => $item->title,
+                    'delta'    => $delta,
+                    'before'   => $before,
+                    'after'    => $after,
+                    'owner_id' => $item->user_id,
                 ];
             }
         });
@@ -110,7 +158,11 @@ class OperationController extends Controller
             );
         }
 
-        return response()->json($validated);
+        return response()->json([
+            'type'    => $type,
+            'payload' => $payload,
+            'rows'    => $appliedRows,
+        ]);
     }
 
     private function findCode(string $code): ?Code
