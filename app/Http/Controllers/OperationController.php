@@ -169,7 +169,8 @@ class OperationController extends Controller
                 [
                     'code'   => $appliedRow['code'],
                     'title'  => $appliedRow['title'],
-                    'delta'  => $appliedRow['delta'],
+                    // В журнале дельта знаковая: списание — отрицательная.
+                    'delta'  => $appliedRow['after'] - $appliedRow['before'],
                     'before' => $appliedRow['before'],
                     'after'  => $appliedRow['after'],
                 ],
