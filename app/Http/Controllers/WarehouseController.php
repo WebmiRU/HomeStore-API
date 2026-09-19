@@ -16,7 +16,7 @@ class WarehouseController extends Controller
     {
         return WarehouseResource::collection(
             Warehouse::with('user')
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->paginate()
         );
     }
@@ -25,7 +25,7 @@ class WarehouseController extends Controller
     {
         return WarehouseResource::collection(
             Warehouse::with('user')
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->get()
         );
     }

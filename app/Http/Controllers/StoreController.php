@@ -22,7 +22,7 @@ class StoreController extends Controller
     {
         return StoreResource::collection(
             Store::with(['code', 'parent', 'warehouse', 'images', 'user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->paginate()
         );
     }
@@ -31,7 +31,7 @@ class StoreController extends Controller
     {
         return StoreResource::collection(
             Store::with(['code', 'parent', 'warehouse', 'images', 'user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->get()
         );
     }
@@ -168,7 +168,7 @@ class StoreController extends Controller
 
     public function list()
     {
-        $stores = Store::with('code')->orderBy('id')->get();
+        $stores = Store::with('code')->orderByDesc('id')->get();
 
         $stores->transform(function (Store $store) {
             $uuid = strtoupper(str_replace('-', '', (string) $store->code->code));

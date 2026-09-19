@@ -17,7 +17,7 @@ class LabelPresetController extends Controller
     {
         return LabelPresetResource::collection(
             LabelPreset::with(['font', 'user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->paginate()
         );
     }

@@ -20,6 +20,9 @@ class CodeResource extends JsonResource
             'type'    => $type,
             'payload' => $type && $this->relationLoaded($type) && $this->{$type}
                 ? array_merge($this->{$type}->getAttributes(), [
+                    'user'   => $this->relationLoaded('user') && $this->user !== null
+                        ? (new UserBriefResource($this->user))->resolve($request)
+                        : null,
                     'images' => ImageResource::collection($this->{$type}->images)
                         ->resolve($request),
                 ])

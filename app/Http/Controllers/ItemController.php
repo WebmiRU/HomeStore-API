@@ -22,7 +22,7 @@ class ItemController extends Controller
     {
         return ItemResource::collection(
             Item::with(['code', 'store.parent', 'images', 'user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->paginate()
         );
     }
@@ -51,29 +51,19 @@ class ItemController extends Controller
                     'item_id' => $item->id,
                 ]);
             } else {
-                $existing = Code::where('code', $code)->first();
-
-                if ($existing) {
-                    if ($existing->item_id !== null) {
-                        throw ValidationException::withMessages([
-                            'code' => ['Код уже привязан к другому предмету'],
-                        ]);
-                    }
-
-                    if ($existing->store_id !== null) {
-                        throw ValidationException::withMessages([
-                            'code' => ['Код уже привязан к хранилищу'],
-                        ]);
-                    }
-
-                    // Код существует, но ни к чему не привязан — привязываем к товару
-                    $existing->update(['item_id' => $item->id]);
-                } else {
-                    Code::create([
-                        'code'    => $code,
-                        'item_id' => $item->id,
+                // Коды могут повторяться у разных предметов (один штрихкод на
+                // несколько экземпляров товара). Отклоняем только код, привязанный
+                // к хранилищу: скан такого кода приводит к хранилищу, а не к предмету.
+                if (Code::where('code', $code)->whereNotNull('store_id')->exists()) {
+                    throw ValidationException::withMessages([
+                        'code' => ['Код уже привязан к хранилищу'],
                     ]);
                 }
+
+                Code::create([
+                    'code'    => $code,
+                    'item_id' => $item->id,
+                ]);
             }
 
             return $item;
@@ -133,34 +123,15 @@ class ItemController extends Controller
 
     private function bindCodeToItem(Item $item, string $code): void
     {
-        $existing = Code::where('code', $code)->first();
-
-        if ($existing) {
-            if ($existing->item_id !== null && $existing->item_id !== $item->id) {
-                throw ValidationException::withMessages([
-                    'code' => ['Код уже привязан к другому предмету'],
-                ]);
-            }
-
-            if ($existing->store_id !== null) {
-                throw ValidationException::withMessages([
-                    'code' => ['Код уже привязан к хранилищу'],
-                ]);
-            }
-
-            if ($existing->item_id === $item->id) {
-                // Код уже привязан к этому товару
-                return;
-            }
-
-            // «Осиротевший» код — привязываем к товару
-            Code::where('item_id', $item->id)->delete();
-            $existing->update(['item_id' => $item->id]);
-
-            return;
+        // Код хранилища не может быть переиспользован предметом: скан такого
+        // кода должен приводить к хранилищу, а не к предмету.
+        if (Code::where('code', $code)->whereNotNull('store_id')->exists()) {
+            throw ValidationException::withMessages([
+                'code' => ['Код уже привязан к хранилищу'],
+            ]);
         }
 
-        // Новый код — заменяем текущую связку товара
+        // Дубли кодов разрешены — просто заменяем связку этого предмета.
         Code::where('item_id', $item->id)->delete();
         Code::create(['code' => $code, 'item_id' => $item->id]);
     }
@@ -176,7 +147,7 @@ class ItemController extends Controller
 
     public function list()
     {
-        $items = Item::with('code')->orderBy('id')->get();
+        $items = Item::with('code')->orderByDesc('id')->get();
 
         $items->transform(function (Item $item) {
             $uuid = strtoupper(str_replace('-', '', (string) $item->code->code));

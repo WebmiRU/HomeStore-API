@@ -46,4 +46,15 @@ class Code extends Model
                     ->whereIn('code.item_id', static::accessibleItems($userId));
             });
     }
+
+    /**
+     * Детерминированный порядок разрешения кода: сначала свои, затем чужие,
+     * внутри групп — по убыванию id (новые выше). Используется при коллизии
+     * одинаковых кодов у нескольких предметов.
+     */
+    public function scopeMatchesFor(Builder $builder, int $userId): void
+    {
+        $builder->orderByRaw('(code.user_id = ?) DESC', [$userId])
+            ->orderByDesc('code.id');
+    }
 }

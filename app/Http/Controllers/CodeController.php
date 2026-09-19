@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\CodeResource;
 use App\Models\Code;
+use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 use Ramsey\Uuid\Uuid;
 
@@ -34,14 +35,42 @@ class CodeController extends Controller
                 . substr($lower, 20);
         }
 
-        $code = Code::with(['store.parent', 'store.images', 'item.store.parent', 'item.images', 'user'])
+        $matches = Code::with(['store.parent', 'store.images', 'item.store.parent', 'item.images', 'user'])
             ->whereIn('code', $candidates)
-            ->first();
+            ->matchesFor((int) CurrentUser::id())
+            ->get();
 
-        if (!$code) {
+        $storeMatch = $matches->first(fn ($row) => $row->store_id !== null);
+
+        if ($storeMatch !== null) {
+            return new CodeResource($storeMatch);
+        }
+
+        $items = collect();
+        foreach ($matches as $row) {
+            if ($row->item_id === null || $row->item === null) {
+                continue;
+            }
+            if (!$items->has($row->item_id)) {
+                $items->put($row->item_id, $row);
+            }
+        }
+
+        if ($items->isEmpty()) {
             return response()->json(['error' => 'Not found'], 404);
         }
 
-        return new CodeResource($code);
+        if ($items->count() === 1) {
+            return new CodeResource($items->first());
+        }
+
+        // Коллизия: одинаковый код у нескольких доступных предметов —
+        // отдаём все варианты (свои сначала, новые выше).
+        return response()->json([
+            'code'      => trim((string) $request->query('q')),
+            'ambiguous' => true,
+            'matches'   => CodeResource::collection($items->values())
+                ->resolve($request),
+        ]);
     }
 }

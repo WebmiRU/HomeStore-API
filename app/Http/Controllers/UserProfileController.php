@@ -18,14 +18,14 @@ class UserProfileController extends Controller
     public function index(): ResourceCollection
     {
         return UserProfileResource::collection(
-            UserProfile::with('avatarImage')->orderBy('id')->paginate()
+            UserProfile::with('avatarImage')->orderByDesc('id')->paginate()
         );
     }
 
     public function all(): ResourceCollection
     {
         return UserProfileResource::collection(
-            UserProfile::with('avatarImage')->orderBy('id')->get()
+            UserProfile::with('avatarImage')->orderByDesc('id')->get()
         );
     }
 

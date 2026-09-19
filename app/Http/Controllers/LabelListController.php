@@ -23,7 +23,7 @@ class LabelListController extends Controller
     {
         return LabelListResource::collection(
             LabelList::with(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->paginate()
         );
     }
@@ -32,7 +32,7 @@ class LabelListController extends Controller
     {
         return LabelListResource::collection(
             LabelList::with(['labelPreset.user', 'items', 'stores', 'user', 'items.user', 'stores.user'])
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->get()
         );
     }
