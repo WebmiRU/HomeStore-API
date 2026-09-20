@@ -2,37 +2,37 @@
 
 namespace App\Services\Pdf;
 
-use TCPDF;
+use Com\Tecnick\Pdf\Tcpdf;
 
 /**
  * Сервис генерации PDF с этикетками, содержащими DataMatrix-код и адаптивный текст.
  *
  * На вход принимает массив этикеток [{code, title}] и параметры листа/ячейки,
- * возвращает готовый TCPDF-документ для скачивания или сохранения.
+ * возвращает готовые байты PDF-документа (tc-lib-pdf).
  */
 class LabelPdfService
 {
     /** @var array<string, mixed> Настройки по умолчанию */
     private array $defaults = [
         // Размеры листа (мм)
-        'page_width'  => 210.0, // A4
+        'page_width' => 210.0, // A4
         'page_height' => 297.0, // A4
 
         // Поля листа (мм)
-        'page_margin_top'    => 10.0,
-        'page_margin_right'  => 10.0,
+        'page_margin_top' => 10.0,
+        'page_margin_right' => 10.0,
         'page_margin_bottom' => 10.0,
-        'page_margin_left'   => 10.0,
+        'page_margin_left' => 10.0,
 
         // Размеры одной ячейки (мм)
-        'cell_width'  => 78.0,
+        'cell_width' => 78.0,
         'cell_height' => 23.0,
 
         // Поля внутри ячейки (мм)
-        'cell_pad_top'    => 3.0,
-        'cell_pad_right'  => 5.0,
+        'cell_pad_top' => 3.0,
+        'cell_pad_right' => 5.0,
         'cell_pad_bottom' => 5.0,
-        'cell_pad_left'   => 5.0,
+        'cell_pad_left' => 5.0,
 
         // Позиция DataMatrix-кода: 'left' или 'right'
         'barcode_position' => 'left',
@@ -44,7 +44,7 @@ class LabelPdfService
         'barcode_size' => 13.0,
 
         // Параметры шрифта
-        'font_family'  => 'robotocondensedb',
+        'font_family' => 'robotocondensedb',
         'font_size_min' => 5.0,
         'font_size_max' => 24.0,
         'font_size_step' => 0.5,
@@ -54,60 +54,78 @@ class LabelPdfService
     ];
 
     /**
-     * Генерирует PDF с этикетками.
+     * Генерирует PDF с этикетками и возвращает готовые байты документа.
      *
-     * @param array<int, array{code: string, title: string}> $labels
-     *        Массив этикеток, каждая с ключами:
-     *        - 'code'  — строка для DataMatrix-кода
-     *        - 'title' — текст заголовка (адаптивно вписывается)
-     * @param array<string, mixed> $options Параметры, переопределяющие defaults
-     * @return TCPDF
+     * @param  array<int, array{code: string, title: string}>  $labels
+     *                                                                  Массив этикеток, каждая с ключами:
+     *                                                                  - 'code'  — строка для DataMatrix-кода
+     *                                                                  - 'title' — текст заголовка (адаптивно вписывается)
+     * @param  array<string, mixed>  $options  Параметры, переопределяющие defaults
+     * @return string Байты PDF
      */
-    public function generate(array $labels, array $options = []): TCPDF
+    public function generate(array $labels, array $options = []): string
     {
         $cfg = array_merge($this->defaults, $options);
 
         $pdf = $this->createPdf($cfg);
-        $pdf->AddPage();
+        $this->addLabelPage($pdf, $cfg);
 
         $this->drawLabels($pdf, $labels, $cfg);
+
+        return $pdf->getOutPDFString();
+    }
+
+    /**
+     * Создаёт и настраивает экземпляр tc-lib-pdf.
+     *
+     * @param  array<string, mixed>  $cfg
+     */
+    private function createPdf(array $cfg): Tcpdf
+    {
+        $pdf = new Tcpdf('mm', true, true, true, '');
+
+        // Отключаем фоновое содержимое страниц (номер в футере и т.п.)
+        $pdf->enableDefaultPageContent(false);
 
         return $pdf;
     }
 
     /**
-     * Создаёт и настраивает экземпляр TCPDF.
+     * Добавляет страницу заданного формата с полями.
+     * Автоматический перенос страниц отключён — страницы расставляем сами сеткой.
      *
-     * @param array<string, mixed> $cfg
-     * @return TCPDF
+     * @param  array<string, mixed>  $cfg
      */
-    private function createPdf(array $cfg): TCPDF
+    private function addLabelPage(Tcpdf $pdf, array $cfg): void
     {
-        $pdf = new TCPDF('P', 'mm', [
-            $cfg['page_width'],
-            $cfg['page_height'],
-        ], true, 'UTF-8');
+        $top = (float) $cfg['page_margin_top'];
+        $bottom = (float) $cfg['page_margin_bottom'];
 
-        $pdf->SetMargins(
-            $cfg['page_margin_left'],
-            $cfg['page_margin_top'],
-            $cfg['page_margin_right']
-        );
-        $pdf->SetAutoPageBreak(false);
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-
-        return $pdf;
+        $pdf->addPage([
+            'width' => (float) $cfg['page_width'],
+            'height' => (float) $cfg['page_height'],
+            'orientation' => 'P',
+            'autobreak' => false,
+            'margin' => [
+                'PL' => (float) $cfg['page_margin_left'],
+                'PR' => (float) $cfg['page_margin_right'],
+                'PT' => $top,
+                'HB' => $top,
+                'CT' => $top,
+                'CB' => $bottom,
+                'FT' => $bottom,
+                'PB' => $bottom,
+            ],
+        ]);
     }
 
     /**
      * Рисует все этикетки сеткой на странице.
      *
-     * @param TCPDF $pdf
-     * @param array<int, array{code: string, title: string}> $labels
-     * @param array<string, mixed> $cfg
+     * @param  array<int, array{code: string, title: string}>  $labels
+     * @param  array<string, mixed>  $cfg
      */
-    private function drawLabels(TCPDF $pdf, array $labels, array $cfg): void
+    private function drawLabels(Tcpdf $pdf, array $labels, array $cfg): void
     {
         $usableW = $cfg['page_width'] - $cfg['page_margin_left'] - $cfg['page_margin_right'];
         $cols = max(1, (int) floor($usableW / $cfg['cell_width']));
@@ -123,7 +141,7 @@ class LabelPdfService
         foreach ($labels as $index => $label) {
             // переход на новую страницу при заполнении строк
             if ($pageRow >= $rowsPerPage) {
-                $pdf->AddPage();
+                $this->addLabelPage($pdf, $cfg);
                 $pageRow = 0;
             }
 
@@ -143,22 +161,26 @@ class LabelPdfService
     /**
      * Рисует одну ячейку: DataMatrix + адаптивный текст.
      *
-     * @param TCPDF $pdf
-     * @param float $x       X-координата левого верхнего угла ячейки (мм)
-     * @param float $y       Y-координата левого верхнего угла ячейки (мм)
-     * @param string $code   Данные для DataMatrix
-     * @param string $title  Текст заголовка
-     * @param array<string, mixed> $cfg
+     * @param  float  $x  X-координата левого верхнего угла ячейки (мм)
+     * @param  float  $y  Y-координата левого верхнего угла ячейки (мм)
+     * @param  string  $code  Данные для DataMatrix
+     * @param  string  $title  Текст заголовка
+     * @param  array<string, mixed>  $cfg
      */
-    private function drawCell(TCPDF $pdf, float $x, float $y, string $code, string $title, array $cfg): void
+    private function drawCell(Tcpdf $pdf, float $x, float $y, string $code, string $title, array $cfg): void
     {
         // Рамка ячейки (тонкая, 0.2 мм)
-        $pdf->SetLineWidth(0.2);
-        $pdf->SetDrawColor(0, 0, 0);
-        $pdf->Rect($x, $y, $cfg['cell_width'], $cfg['cell_height'], 'D');
+        $pdf->page->addContent($pdf->graph->getBasicRect(
+            $x,
+            $y,
+            (float) $cfg['cell_width'],
+            (float) $cfg['cell_height'],
+            'D',
+            ['lineWidth' => 0.2, 'lineColor' => 'black'],
+        ));
 
-        $barcodeSize = $cfg['barcode_size'];
-        $gap = $cfg['barcode_text_gap'];
+        $barcodeSize = (float) $cfg['barcode_size'];
+        $gap = (float) $cfg['barcode_text_gap'];
 
         // Определяем позиции кода и текста
         if ($cfg['barcode_position'] === 'left') {
@@ -174,16 +196,16 @@ class LabelPdfService
         $barcodeY = $y + $cfg['cell_pad_top'] + ($usableHeight - $barcodeSize) / 2;
 
         // --- DataMatrix ---
-        $pdf->write2DBarcode(
-            $code,
+        $pdf->page->addContent($pdf->getBarcode(
             'DATAMATRIX',
+            $code,
             $barcodeX,
             $barcodeY,
-            $barcodeSize,
-            $barcodeSize,
-            ['border' => false, 'padding' => 0],
-            ''
-        );
+            (int) round($barcodeSize),
+            (int) round($barcodeSize),
+            [0, 0, 0, 0],
+            ['lineWidth' => 0.0, 'lineColor' => 'black', 'fillColor' => 'black'],
+        ));
 
         // --- Адаптивный текст ---
         $textY = $y + $cfg['cell_pad_top'];
@@ -196,8 +218,7 @@ class LabelPdfService
     /**
      * Ширина текстовой области внутри ячейки (мм).
      *
-     * @param array<string, mixed> $cfg
-     * @return float
+     * @param  array<string, mixed>  $cfg
      */
     private function textAreaWidth(array $cfg): float
     {
@@ -216,16 +237,15 @@ class LabelPdfService
      * Использует сбалансированный перенос строк (wrapText),
      * чтобы строки были примерно одинаковой ширины.
      *
-     * @param TCPDF $pdf
-     * @param float $x      X левого верхнего угла текстовой области (мм)
-     * @param float $y      Y левого верхнего угла текстовой области (мм)
-     * @param float $w      Ширина текстовой области (мм)
-     * @param float $h      Высота текстовой области (мм)
-     * @param string $text  Текст
-     * @param array<string, mixed> $cfg
+     * @param  float  $x  X левого верхнего угла текстовой области (мм)
+     * @param  float  $y  Y левого верхнего угла текстовой области (мм)
+     * @param  float  $w  Ширина текстовой области (мм)
+     * @param  float  $h  Высота текстовой области (мм)
+     * @param  string  $text  Текст
+     * @param  array<string, mixed>  $cfg
      */
     private function drawAdaptiveText(
-        TCPDF $pdf,
+        Tcpdf $pdf,
         float $x,
         float $y,
         float $w,
@@ -234,39 +254,126 @@ class LabelPdfService
         array $cfg
     ): void {
         $fontFamily = $cfg['font_family'];
-        $sizeMin  = (float) $cfg['font_size_min'];
-        $sizeMax  = (float) $cfg['font_size_max'];
+        $sizeMin = (float) $cfg['font_size_min'];
+        $sizeMax = (float) $cfg['font_size_max'];
         $sizeStep = (float) $cfg['font_size_step'];
         $lineHFactor = (float) $cfg['line_height_factor'];
 
-        // Синхронизируем cellheightratio, чтобы getCellHeight()
-        // и MultiCell() использовали одинаковый межстрочный интервал.
-        $pdf->setCellHeightRatio($lineHFactor);
-
         for ($size = $sizeMax; $size >= $sizeMin; $size -= $sizeStep) {
-            $pdf->SetFont($fontFamily, '', $size);
+            $metric = $this->insertFont($pdf, $fontFamily, $size);
 
-            $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
+            $lineHeight = $this->lineHeight($pdf, $size, $lineHFactor);
             $wrapResult = $this->wrapText($pdf, $text, $w);
             $textHeight = $wrapResult['lines'] * $lineHeight;
 
-            // 0.5mm safety margin — MultiCell рендерится чуть выше lines * lineHeight
+            // 0.5mm safety margin — текст рендерится чуть выше lines * lineHeight
             if ($textHeight <= $h - 0.5) {
                 $offsetY = ($h - $textHeight) / 2;
-                $pdf->SetXY($x, $y + $offsetY);
-                $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
+                $this->drawText($pdf, $x, $y + $offsetY, $w, $wrapResult['text'], $metric, $size, $lineHeight, $lineHFactor);
+
                 return;
             }
+
+            // Не подошёл кегль — снимаем шрифт со стека и пробуем меньше
+            $this->popFont($pdf);
         }
 
         // Минимальный кегль — рисуем как есть (обрежется снизу)
-        $pdf->SetFont($fontFamily, '', $sizeMin);
-        $lineHeight = $pdf->getCellHeight($pdf->getFontSize(), false);
+        $size = $sizeMin;
+        $metric = $this->insertFont($pdf, $fontFamily, $size);
+        $lineHeight = $this->lineHeight($pdf, $size, $lineHFactor);
         $wrapResult = $this->wrapText($pdf, $text, $w);
         $textHeight = $wrapResult['lines'] * $lineHeight;
         $offsetY = ($h - $textHeight) / 2;
-        $pdf->SetXY($x, $y + max(0, $offsetY));
-        $pdf->MultiCell($w, $lineHeight, $wrapResult['text'], 0, 'C', false, 0);
+        $this->drawText($pdf, $x, $y + max(0, $offsetY), $w, $wrapResult['text'], $metric, $size, $lineHeight, $lineHFactor);
+    }
+
+    /**
+     * Вставляет шрифт текущего кегля в стек и возвращает его метрики.
+     * После вызова измерения ширины работают на этом шрифте.
+     *
+     * @return array<string, mixed>
+     */
+    private function insertFont(Tcpdf $pdf, string $family, float $sizePt): array
+    {
+        return $pdf->font->insert($pdf->pon, $family, '', $sizePt);
+    }
+
+    /**
+     * Убирает верхний шрифт со стека после измерения.
+     */
+    private function popFont(Tcpdf $pdf): void
+    {
+        $pdf->font->popLastFont();
+    }
+
+    /**
+     * Высота строки текста (мм) для заданного кегля и коэффициента межстрочного интервала.
+     */
+    private function lineHeight(Tcpdf $pdf, float $sizePt, float $lineHFactor): float
+    {
+        return $pdf->toUnit($sizePt) * $lineHFactor;
+    }
+
+    /**
+     * Рисует текст внутри прямоугольной области (эквивалент MultiCell
+     * с border=0, align='C', fill=false, top-выравниванием).
+     *
+     * @param  array<string, mixed>  $metric
+     */
+    private function drawText(
+        Tcpdf $pdf,
+        float $x,
+        float $y,
+        float $w,
+        string $text,
+        array $metric,
+        float $sizePt,
+        float $lineHeight,
+        float $lineHFactor
+    ): void {
+        // Переводим фокус страницы на выбранный шрифт
+        $pdf->page->addContent($metric['out']);
+
+        // Межстрочный интервал: общая высота строки ($lineHeight) минус
+        // собственная высота глифов шрифта.
+        $fontHeightMm = $pdf->toUnit($metric['height']);
+        $linespace = $lineHeight - $fontHeightMm;
+
+        // Как в TCPDF-совместимом модуле: верхняя половина межстрочного
+        // интервала добавляется как верхний паддинг ячейки.
+        $cell = Tcpdf::ZEROCELL;
+        $cell['padding']['T'] = $pdf->toPoints($linespace / 2.0);
+
+        $pdf->addTextCellXY(
+            $text,
+            -1,
+            $x,
+            $y,
+            $w,
+            $lineHeight,
+            0,
+            $linespace,
+            'T',
+            'C',
+            $cell,
+            [],
+            0,
+            0,
+            0,
+            0,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            '',
+            null,
+            '',
+        );
     }
 
     /**
@@ -276,12 +383,11 @@ class LabelPdfService
      * последняя — короткая), этот метод распределяет слова так,
      * чтобы ширина строк была выровнена.
      *
-     * @param TCPDF $pdf
-     * @param string $text  Исходный текст (одна строка, без \n)
-     * @param float  $maxWidthMm Максимальная ширина строки (мм)
+     * @param  string  $text  Исходный текст (одна строка, без \n)
+     * @param  float  $maxWidthMm  Максимальная ширина строки (мм)
      * @return array{text: string, lines: int} Текст с явными \n и количество строк
      */
-    private function wrapText(TCPDF $pdf, string $text, float $maxWidthMm): array
+    private function wrapText(Tcpdf $pdf, string $text, float $maxWidthMm): array
     {
         // 10% запас компенсирует расхождение GetStringWidth и MultiCell
         $effectiveWidth = $maxWidthMm / 1.10;
@@ -293,13 +399,13 @@ class LabelPdfService
         }
 
         // Если весь текст на одной строке — возвращаем как есть
-        if ($pdf->GetStringWidth($text) <= $effectiveWidth) {
+        if ($this->stringWidthMm($pdf, $text) <= $effectiveWidth) {
             return ['text' => $text, 'lines' => 1];
         }
 
         // Измеряем ширину каждого слова
-        $wordWidths = array_map(fn($w) => $pdf->GetStringWidth($w), $words);
-        $spaceWidth = $pdf->GetStringWidth(' ');
+        $wordWidths = array_map(fn ($w) => $this->stringWidthMm($pdf, $w), $words);
+        $spaceWidth = $this->stringWidthMm($pdf, ' ');
 
         // Определяем минимальное количество строк (жадный подсчёт)
         $minLines = $this->countGreedyLines($wordWidths, $spaceWidth, $effectiveWidth);
@@ -308,18 +414,23 @@ class LabelPdfService
         $balanced = $this->balanceLines($words, $wordWidths, $spaceWidth, $effectiveWidth, $minLines);
 
         return [
-            'text'  => implode("\n", $balanced),
+            'text' => implode("\n", $balanced),
             'lines' => count($balanced),
         ];
     }
 
     /**
+     * Ширина строки (мм) на текущем шрифте в стеке.
+     */
+    private function stringWidthMm(Tcpdf $pdf, string $str): float
+    {
+        return $pdf->toUnit($pdf->font->getOrdArrWidth($pdf->uniconv->strToOrdArr($str)));
+    }
+
+    /**
      * Жадный подсчёт строк (без балансировки).
      *
-     * @param float[] $wordWidths
-     * @param float $spaceWidth
-     * @param float $maxWidth
-     * @return int
+     * @param  float[]  $wordWidths
      */
     private function countGreedyLines(array $wordWidths, float $spaceWidth, float $maxWidth): int
     {
@@ -343,11 +454,9 @@ class LabelPdfService
      * Балансирует перенос строк: для 2 строк — оптимальный сплит,
      * для 3+ — жадный с выравниванием на целевое среднее.
      *
-     * @param string[] $words
-     * @param float[]  $wordWidths
-     * @param float    $spaceWidth
-     * @param float    $maxWidth
-     * @param int      $targetLines Минимально необходимое количество строк
+     * @param  string[]  $words
+     * @param  float[]  $wordWidths
+     * @param  int  $targetLines  Минимально необходимое количество строк
      * @return string[] Массив строк (без \n)
      */
     private function balanceLines(
@@ -395,6 +504,7 @@ class LabelPdfService
 
             $line1 = array_slice($words, 0, $bestSplit);
             $line2 = array_slice($words, $bestSplit);
+
             return [implode(' ', $line1), implode(' ', $line2)];
         }
 
@@ -419,6 +529,7 @@ class LabelPdfService
                 $lines[] = implode(' ', $lineWords);
                 $lineWords = [$words[$i]];
                 $lineWidth = $wordWidths[$i];
+
                 continue;
             }
 
@@ -435,6 +546,7 @@ class LabelPdfService
                     $lines[] = implode(' ', $lineWords);
                     $lineWords = [$words[$i]];
                     $lineWidth = $wordWidths[$i];
+
                     continue;
                 }
             }
@@ -449,5 +561,4 @@ class LabelPdfService
 
         return $lines;
     }
-
 }

@@ -111,7 +111,7 @@ class LabelListController extends Controller
         foreach ($labelList->items as $item) {
             if ($item->code) {
                 $labels[] = [
-                    'code'  => $item->code->code,
+                    'code' => $item->code->code,
                     'title' => $item->title_print ?: $item->title,
                 ];
             }
@@ -120,7 +120,7 @@ class LabelListController extends Controller
         foreach ($labelList->stores as $store) {
             if ($store->code) {
                 $labels[] = [
-                    'code'  => $store->code->code,
+                    'code' => $store->code->code,
                     'title' => $store->title_print ?: $store->title,
                 ];
             }
@@ -135,32 +135,32 @@ class LabelListController extends Controller
 
         if ($preset) {
             $options = [
-                'page_width'        => $preset->page_width,
-                'page_height'       => $preset->page_height,
-                'page_margin_top'   => $preset->page_margin_top,
+                'page_width' => $preset->page_width,
+                'page_height' => $preset->page_height,
+                'page_margin_top' => $preset->page_margin_top,
                 'page_margin_right' => $preset->page_margin_right,
-                'page_margin_bottom'=> $preset->page_margin_bottom,
-                'page_margin_left'  => $preset->page_margin_left,
-                'cell_width'        => $preset->cell_width,
-                'cell_height'       => $preset->cell_height,
-                'cell_pad_top'      => $preset->cell_pad_top,
-                'cell_pad_right'    => $preset->cell_pad_right,
-                'cell_pad_bottom'   => $preset->cell_pad_bottom,
-                'cell_pad_left'     => $preset->cell_pad_left,
-                'barcode_position'  => $preset->barcode_position,
-                'barcode_size'      => $preset->barcode_size,
-                'font_family'       => $preset->font->key ?? 'helvetica',
-                'font_size_min'     => $preset->font_size_min,
-                'font_size_max'     => $preset->font_size_max,
+                'page_margin_bottom' => $preset->page_margin_bottom,
+                'page_margin_left' => $preset->page_margin_left,
+                'cell_width' => $preset->cell_width,
+                'cell_height' => $preset->cell_height,
+                'cell_pad_top' => $preset->cell_pad_top,
+                'cell_pad_right' => $preset->cell_pad_right,
+                'cell_pad_bottom' => $preset->cell_pad_bottom,
+                'cell_pad_left' => $preset->cell_pad_left,
+                'barcode_position' => $preset->barcode_position,
+                'barcode_size' => $preset->barcode_size,
+                'font_family' => $preset->font->key ?? 'helvetica',
+                'font_size_min' => $preset->font_size_min,
+                'font_size_max' => $preset->font_size_max,
             ];
         }
 
-        $filename = 'labels-' . mb_ereg_replace('[^a-zA-Z0-9а-яА-Я_-]', '_', $labelList->title) . '.pdf';
+        $filename = 'labels-'.mb_ereg_replace('[^a-zA-Z0-9а-яА-Я_-]', '_', $labelList->title).'.pdf';
         $pdf = $this->labelService->generate($labels, $options);
 
-        return response($pdf->Output('labels.pdf', 'S'), 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 }

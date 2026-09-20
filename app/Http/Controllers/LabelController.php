@@ -8,6 +8,7 @@ use App\Services\Pdf\LabelPdfService;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\Response;
 
 class LabelController extends Controller
 {
@@ -49,13 +50,13 @@ class LabelController extends Controller
      *   }
      * }
      */
-    public function generate(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function generate(Request $request): Response
     {
         $validator = Validator::make($request->all(), [
-            'labels'              => ['required', 'array', 'min:1'],
-            'labels.*.code'       => ['required', 'string', 'max:255'],
-            'labels.*.title'      => ['required', 'string', 'max:500'],
-            'options'             => ['sometimes', 'array'],
+            'labels' => ['required', 'array', 'min:1'],
+            'labels.*.code' => ['required', 'string', 'max:255'],
+            'labels.*.title' => ['required', 'string', 'max:500'],
+            'options' => ['sometimes', 'array'],
             'options.barcode_position' => ['sometimes', 'string', 'in:left,right'],
             'options.font_family' => ['sometimes', 'string'],
             'options.font_size_min' => ['sometimes', 'numeric', 'min:2', 'max:20'],
@@ -66,7 +67,7 @@ class LabelController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $labels  = $request->input('labels', []);
+        $labels = $request->input('labels', []);
         $options = $request->input('options', []);
 
         $pdf = $this->labelService->generate($labels, $options);
@@ -79,8 +80,8 @@ class LabelController extends Controller
             ['count' => count($labels)],
         );
 
-        return response($pdf->Output('labels.pdf', 'S'), 200, [
-            'Content-Type'        => 'application/pdf',
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="labels.pdf"',
         ]);
     }
