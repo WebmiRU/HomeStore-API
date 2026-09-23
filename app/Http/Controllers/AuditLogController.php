@@ -51,6 +51,7 @@ class AuditLogController extends Controller
             'date_to'     => ['sometimes', 'date', 'after_or_equal:date_from'],
             'entity_type' => ['sometimes', 'string', 'in:' . implode(',', self::ENTITY_TYPES)],
             'entity_id'   => ['sometimes', 'integer', 'min:1'],
+            'tz_offset'   => ['sometimes', 'integer', 'between:-840,840'],
         ])->validated();
 
         $parts = array_values(array_unique(array_map('trim', explode(',', (string) $validated['group_by']))));
@@ -74,6 +75,15 @@ class AuditLogController extends Controller
 
         $granularity = $validated['granularity'] ?? 'day';
 
+        // Сдвиг часового пояса пользователя (в минутах) для корректных локальных
+        // бакетов дней/часов: created_at хранится в UTC, а пользователь может
+        // жить в другой зоне (например +03:00). Сдвиг применяется до date_trunc,
+        // чтобы границы дня/часа совпадали с локальным календарём.
+        $tzOffset = (int) ($validated['tz_offset'] ?? 0);
+        $tzShift = $tzOffset === 0
+            ? 'created_at'
+            : 'created_at + make_interval(mins => ' . $tzOffset . ')';
+
         $query = AuditLog::query();
         $this->applyScope($query, $request);
 
@@ -85,7 +95,7 @@ class AuditLogController extends Controller
         // дают суммарные итоги за выбранный период.
         if ($byDay) {
             $truncated = $granularity === 'hour' ? 'hour' : 'day';
-            $selects[] = "date_trunc('" . $truncated . "', created_at) AS bucket";
+            $selects[] = "date_trunc('" . $truncated . "', {$tzShift}) AS bucket";
             $group[] = 'bucket';
         }
 
