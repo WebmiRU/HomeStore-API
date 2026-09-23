@@ -1,0 +1,184 @@
+[
+  {
+    "idx": 1,
+    "label": "Болт М6х10",
+    "term": "ISO metric hex bolt",
+    "file": "image_1.jpg",
+    "size": 129991
+  },
+  {
+    "idx": 2,
+    "label": "Болт М8х25",
+    "term": "hex bolt with nut",
+    "file": "image_2.jpg",
+    "size": 73072
+  },
+  {
+    "idx": 3,
+    "label": "Болт М10х30",
+    "term": "high tensile bolt M10",
+    "file": "image_3.jpg",
+    "size": 90666
+  },
+  {
+    "idx": 4,
+    "label": "Саморез 3.5х25",
+    "term": "drywall screw 3.5x25",
+    "file": "image_4.jpg",
+    "size": 88131
+  },
+  {
+    "idx": 5,
+    "label": "Саморез 4х35",
+    "term": "self tapping screw 4x35",
+    "file": "image_5.jpg",
+    "size": 310735
+  },
+  {
+    "idx": 6,
+    "label": "Саморез 4.2х16 с прессшайбой",
+    "term": "screw with hex washer head",
+    "file": "image_6.jpg",
+    "size": 47076
+  },
+  {
+    "idx": 7,
+    "label": "Шуруп 5х50",
+    "term": "wood screw 5x50",
+    "file": "image_7.jpg",
+    "size": 136434
+  },
+  {
+    "idx": 8,
+    "label": "Гайка М6",
+    "term": "hex nut M6",
+    "file": "image_8.png",
+    "size": 1514557
+  },
+  {
+    "idx": 9,
+    "label": "Гайка М8",
+    "term": "hex nut M8",
+    "file": "image_9.jpg",
+    "size": 398659
+  },
+  {
+    "idx": 10,
+    "label": "Гайка М10",
+    "term": "hex nut M10",
+    "file": "image_10.jpg",
+    "size": 201714
+  },
+  {
+    "idx": 11,
+    "label": "Гайка самоконтрящаяся",
+    "term": "nyloc nut",
+    "file": "image_11.jpg",
+    "size": 112127
+  },
+  {
+    "idx": 12,
+    "label": "Шайба плоская",
+    "term": "flat washer M6",
+    "file": "image_12.jpg",
+    "size": 21847
+  },
+  {
+    "idx": 13,
+    "label": "Шайба гровер",
+    "term": "spring washer",
+    "file": "image_13.jpg",
+    "size": 109286
+  },
+  {
+    "idx": 14,
+    "label": "Шайба пружинная",
+    "term": "lock washer",
+    "file": "image_14.jpg",
+    "size": 115930
+  },
+  {
+    "idx": 15,
+    "label": "Хомут червячный",
+    "term": "worm drive hose clamp",
+    "file": "image_15.jpg",
+    "size": 130566
+  },
+  {
+    "idx": 16,
+    "label": "Стяжка нейлоновая",
+    "term": "zip tie",
+    "file": "image_16.jpg",
+    "size": 214658
+  },
+  {
+    "idx": 17,
+    "label": "Заклёпка вытяжная",
+    "term": "blind rivet",
+    "file": "image_17.jpg",
+    "size": 60338
+  },
+  {
+    "idx": 18,
+    "label": "Дюбель 6х30",
+    "term": "wall plug expansion anchor",
+    "file": "image_18.jpg",
+    "size": 253916
+  },
+  {
+    "idx": 19,
+    "label": "Дюбель-гвоздь",
+    "term": "hammer-in anchor",
+    "file": "image_19.jpg",
+    "size": 341921
+  },
+  {
+    "idx": 20,
+    "label": "Анкер клиновой",
+    "term": "sleeve anchor bolt",
+    "file": "image_20.jpg",
+    "size": 183751
+  },
+  {
+    "idx": 21,
+    "label": "Шпилька резьбовая",
+    "term": "threaded rod",
+    "file": "image_21.jpg",
+    "size": 604309
+  },
+  {
+    "idx": 22,
+    "label": "Гвоздь строительный",
+    "term": "common nail",
+    "file": "image_22.jpg",
+    "size": 356464
+  },
+  {
+    "idx": 23,
+    "label": "Дюбель-бабочка",
+    "term": "toggle bolt",
+    "file": "image_23.jpg",
+    "size": 120236
+  },
+  {
+    "idx": 24,
+    "label": "Винт М3х10",
+    "term": "machine screw M3",
+    "file": "image_24.jpg",
+    "size": 9511
+  },
+  {
+    "idx": 25,
+    "label": "Винт М4х20",
+    "term": "machine screw M4",
+    "file": "image_25.jpg",
+    "size": 63967
+  },
+  {
+    "idx": 26,
+    "label": "Шуруп самонарезающий",
+    "term": "phillips self drilling screw",
+    "file": "image_26.jpg",
+    "size": 152121
+  }
+]

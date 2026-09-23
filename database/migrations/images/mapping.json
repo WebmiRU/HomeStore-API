@@ -1,0 +1,352 @@
+[
+  {
+    "idx": 1,
+    "label": "Болт М6х10",
+    "term": "ISO metric hex bolt",
+    "file": "image_1.jpg",
+    "size": 129991
+  },
+  {
+    "idx": 2,
+    "label": "Болт М8х25",
+    "term": "hex bolt with nut",
+    "file": "image_2.jpg",
+    "size": 73072
+  },
+  {
+    "idx": 3,
+    "label": "Болт М10х30",
+    "term": "high tensile bolt M10",
+    "file": "image_3.jpg",
+    "size": 90666
+  },
+  {
+    "idx": 4,
+    "label": "Саморез 3.5х25",
+    "term": "drywall screw 3.5x25",
+    "file": "image_4.jpg",
+    "size": 88131
+  },
+  {
+    "idx": 5,
+    "label": "Саморез 4х35",
+    "term": "self tapping screw 4x35",
+    "file": "image_5.jpg",
+    "size": 310735
+  },
+  {
+    "idx": 6,
+    "label": "Саморез 4.2х16 с прессшайбой",
+    "term": "screw with hex washer head",
+    "file": "image_6.jpg",
+    "size": 47076
+  },
+  {
+    "idx": 7,
+    "label": "Шуруп 5х50",
+    "term": "wood screw 5x50",
+    "file": "image_7.jpg",
+    "size": 136434
+  },
+  {
+    "idx": 8,
+    "label": "Гайка М6",
+    "term": "hex nut M6",
+    "file": "image_8.png",
+    "size": 1514557
+  },
+  {
+    "idx": 9,
+    "label": "Гайка М8",
+    "term": "hex nut M8",
+    "file": "image_9.jpg",
+    "size": 398659
+  },
+  {
+    "idx": 10,
+    "label": "Гайка М10",
+    "term": "hex nut M10",
+    "file": "image_10.jpg",
+    "size": 201714
+  },
+  {
+    "idx": 11,
+    "label": "Гайка самоконтрящаяся",
+    "term": "nyloc nut",
+    "file": "image_11.jpg",
+    "size": 112127
+  },
+  {
+    "idx": 12,
+    "label": "Шайба плоская",
+    "term": "flat washer M6",
+    "file": "image_12.jpg",
+    "size": 21847
+  },
+  {
+    "idx": 13,
+    "label": "Шайба гровер",
+    "term": "spring washer",
+    "file": "image_13.jpg",
+    "size": 109286
+  },
+  {
+    "idx": 14,
+    "label": "Шайба пружинная",
+    "term": "lock washer",
+    "file": "image_14.jpg",
+    "size": 115930
+  },
+  {
+    "idx": 15,
+    "label": "Хомут червячный",
+    "term": "worm drive hose clamp",
+    "file": "image_15.jpg",
+    "size": 130566
+  },
+  {
+    "idx": 16,
+    "label": "Стяжка нейлоновая",
+    "term": "zip tie",
+    "file": "image_16.jpg",
+    "size": 214658
+  },
+  {
+    "idx": 17,
+    "label": "Заклёпка вытяжная",
+    "term": "blind rivet",
+    "file": "image_17.jpg",
+    "size": 60338
+  },
+  {
+    "idx": 18,
+    "label": "Дюбель 6х30",
+    "term": "wall plug expansion anchor",
+    "file": "image_18.jpg",
+    "size": 253916
+  },
+  {
+    "idx": 19,
+    "label": "Дюбель-гвоздь",
+    "term": "hammer-in anchor",
+    "file": "image_19.jpg",
+    "size": 341921
+  },
+  {
+    "idx": 20,
+    "label": "Анкер клиновой",
+    "term": "sleeve anchor bolt",
+    "file": "image_20.jpg",
+    "size": 183751
+  },
+  {
+    "idx": 21,
+    "label": "Шпилька резьбовая",
+    "term": "threaded rod",
+    "file": "image_21.jpg",
+    "size": 604309
+  },
+  {
+    "idx": 22,
+    "label": "Гвоздь строительный",
+    "term": "common nail",
+    "file": "image_22.jpg",
+    "size": 356464
+  },
+  {
+    "idx": 23,
+    "label": "Дюбель-бабочка",
+    "term": "toggle bolt",
+    "file": "image_23.jpg",
+    "size": 120236
+  },
+  {
+    "idx": 24,
+    "label": "Винт М3х10",
+    "term": "machine screw M3",
+    "file": "image_24.jpg",
+    "size": 9511
+  },
+  {
+    "idx": 25,
+    "label": "Винт М4х20",
+    "term": "machine screw M4",
+    "file": "image_25.jpg",
+    "size": 63967
+  },
+  {
+    "idx": 26,
+    "label": "Шуруп самонарезающий",
+    "term": "phillips self drilling screw",
+    "file": "image_26.jpg",
+    "size": 152121
+  },
+  {
+    "idx": 27,
+    "label": "Кабель USB",
+    "term": "USB cable",
+    "file": "image_27.png",
+    "size": 313654
+  },
+  {
+    "idx": 28,
+    "label": "Кабель HDMI",
+    "term": "HDMI cable",
+    "file": "image_28.jpg",
+    "size": 209236
+  },
+  {
+    "idx": 29,
+    "label": "Зарядное устройство",
+    "term": "power adapter charger",
+    "file": "image_29.jpg",
+    "size": 121123
+  },
+  {
+    "idx": 30,
+    "label": "Скрепки канцелярские",
+    "term": "paper clip",
+    "file": "image_30.jpg",
+    "size": 279785
+  },
+  {
+    "idx": 31,
+    "label": "Карандаш простой",
+    "term": "pencil",
+    "file": "image_31.jpg",
+    "size": 147886
+  },
+  {
+    "idx": 32,
+    "label": "Ручка шариковая",
+    "term": "ballpoint pen",
+    "file": "image_32.jpg",
+    "size": 158526
+  },
+  {
+    "idx": 33,
+    "label": "Маркер перманентный",
+    "term": "permanent marker",
+    "file": "image_33.jpg",
+    "size": 115354
+  },
+  {
+    "idx": 34,
+    "label": "Ластик",
+    "term": "eraser",
+    "file": "image_34.jpg",
+    "size": 25744
+  },
+  {
+    "idx": 35,
+    "label": "Стикеры",
+    "term": "sticky notes",
+    "file": "image_35.png",
+    "size": 49193
+  },
+  {
+    "idx": 36,
+    "label": "Ножницы",
+    "term": "scissors",
+    "file": "image_36.jpg",
+    "size": 69302
+  },
+  {
+    "idx": 37,
+    "label": "Степлер",
+    "term": "stapler",
+    "file": "image_37.jpg",
+    "size": 84036
+  },
+  {
+    "idx": 38,
+    "label": "Скобы для степлера",
+    "term": "staples",
+    "file": "image_38.jpg",
+    "size": 79404
+  },
+  {
+    "idx": 39,
+    "label": "Изолента",
+    "term": "electrical tape",
+    "file": "image_39.jpg",
+    "size": 179942
+  },
+  {
+    "idx": 40,
+    "label": "Скотч",
+    "term": "transparent tape",
+    "file": "image_40.jpg",
+    "size": 91462
+  },
+  {
+    "idx": 41,
+    "label": "Линейка",
+    "term": "ruler",
+    "file": "image_41.jpg",
+    "size": 89782
+  },
+  {
+    "idx": 42,
+    "label": "Батарейки AA",
+    "term": "AA batteries",
+    "file": "image_42.jpg",
+    "size": 62307
+  },
+  {
+    "idx": 43,
+    "label": "Батарейки AAA",
+    "term": "AAA battery",
+    "file": "image_43.jpg",
+    "size": 267648
+  },
+  {
+    "idx": 44,
+    "label": "Флешка USB",
+    "term": "flash drive USB",
+    "file": "image_44.jpg",
+    "size": 64476
+  },
+  {
+    "idx": 45,
+    "label": "Клей-карандаш",
+    "term": "glue stick",
+    "file": "image_45.jpg",
+    "size": 157054
+  },
+  {
+    "idx": 46,
+    "label": "Канцелярский нож",
+    "term": "box cutter knife",
+    "file": "image_46.jpg",
+    "size": 56178
+  },
+  {
+    "idx": 47,
+    "label": "Кнопки канцелярские",
+    "term": "push pins",
+    "file": "image_47.jpg",
+    "size": 33347
+  },
+  {
+    "idx": 48,
+    "label": "Булавки",
+    "term": "pins safety pin",
+    "file": "image_48.jpg",
+    "size": 72475
+  },
+  {
+    "idx": 49,
+    "label": "Отвёртка",
+    "term": "screwdriver small",
+    "file": "image_49.jpg",
+    "size": 133254
+  },
+  {
+    "idx": 50,
+    "label": "Пинцет",
+    "term": "tweezer",
+    "file": "image_50.jpg",
+    "size": 48836
+  }
+]

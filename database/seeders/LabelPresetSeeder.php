@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\UserProfile;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -62,11 +63,19 @@ class LabelPresetSeeder extends Seeder
             ],
         ];
 
-        foreach ($presets as $preset) {
-            DB::table('label_preset')->updateOrInsert(
-                ['title' => $preset['title']],
-                $preset + ['updated_at' => now()]
-            );
+        $users = UserProfile::whereIn('email', [
+            'admin@admin.admin',
+            'demo@demo.demo',
+            'user@user.user',
+        ])->get();
+
+        foreach ($users as $user) {
+            foreach ($presets as $preset) {
+                DB::table('label_preset')->updateOrInsert(
+                    ['user_id' => $user->id, 'title' => $preset['title']],
+                    $preset + ['user_id' => $user->id, 'updated_at' => now()]
+                );
+            }
         }
     }
 }

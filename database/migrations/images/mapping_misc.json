@@ -1,0 +1,170 @@
+[
+  {
+    "idx": 27,
+    "label": "Кабель USB",
+    "term": "USB cable",
+    "file": "image_27.png",
+    "size": 313654
+  },
+  {
+    "idx": 28,
+    "label": "Кабель HDMI",
+    "term": "HDMI cable",
+    "file": "image_28.jpg",
+    "size": 209236
+  },
+  {
+    "idx": 29,
+    "label": "Зарядное устройство",
+    "term": "power adapter charger",
+    "file": "image_29.jpg",
+    "size": 121123
+  },
+  {
+    "idx": 30,
+    "label": "Скрепки канцелярские",
+    "term": "paper clip",
+    "file": "image_30.jpg",
+    "size": 279785
+  },
+  {
+    "idx": 31,
+    "label": "Карандаш простой",
+    "term": "pencil",
+    "file": "image_31.jpg",
+    "size": 147886
+  },
+  {
+    "idx": 32,
+    "label": "Ручка шариковая",
+    "term": "ballpoint pen",
+    "file": "image_32.jpg",
+    "size": 158526
+  },
+  {
+    "idx": 33,
+    "label": "Маркер перманентный",
+    "term": "permanent marker",
+    "file": "image_33.jpg",
+    "size": 115354
+  },
+  {
+    "idx": 34,
+    "label": "Ластик",
+    "term": "eraser",
+    "file": "image_34.jpg",
+    "size": 25744
+  },
+  {
+    "idx": 35,
+    "label": "Стикеры",
+    "term": "sticky notes",
+    "file": "image_35.png",
+    "size": 49193
+  },
+  {
+    "idx": 36,
+    "label": "Ножницы",
+    "term": "scissors",
+    "file": "image_36.jpg",
+    "size": 69302
+  },
+  {
+    "idx": 37,
+    "label": "Степлер",
+    "term": "stapler",
+    "file": "image_37.jpg",
+    "size": 84036
+  },
+  {
+    "idx": 38,
+    "label": "Скобы для степлера",
+    "term": "staples",
+    "file": "image_38.jpg",
+    "size": 79404
+  },
+  {
+    "idx": 39,
+    "label": "Изолента",
+    "term": "electrical tape",
+    "file": "image_39.jpg",
+    "size": 179942
+  },
+  {
+    "idx": 40,
+    "label": "Скотч",
+    "term": "transparent tape",
+    "file": "image_40.jpg",
+    "size": 91462
+  },
+  {
+    "idx": 41,
+    "label": "Линейка",
+    "term": "ruler",
+    "file": "image_41.jpg",
+    "size": 89782
+  },
+  {
+    "idx": 42,
+    "label": "Батарейки AA",
+    "term": "AA batteries",
+    "file": "image_42.jpg",
+    "size": 62307
+  },
+  {
+    "idx": 43,
+    "label": "Батарейки AAA",
+    "term": "AAA battery",
+    "file": "image_43.jpg",
+    "size": 267648
+  },
+  {
+    "idx": 44,
+    "label": "Флешка USB",
+    "term": "flash drive USB",
+    "file": "image_44.jpg",
+    "size": 64476
+  },
+  {
+    "idx": 45,
+    "label": "Клей-карандаш",
+    "term": "glue stick",
+    "file": "image_45.jpg",
+    "size": 157054
+  },
+  {
+    "idx": 46,
+    "label": "Канцелярский нож",
+    "term": "box cutter knife",
+    "file": "image_46.jpg",
+    "size": 56178
+  },
+  {
+    "idx": 47,
+    "label": "Кнопки канцелярские",
+    "term": "push pins",
+    "file": "image_47.jpg",
+    "size": 33347
+  },
+  {
+    "idx": 48,
+    "label": "Булавки",
+    "term": "pins safety pin",
+    "file": "image_48.jpg",
+    "size": 72475
+  },
+  {
+    "idx": 49,
+    "label": "Отвёртка",
+    "term": "screwdriver small",
+    "file": "image_49.jpg",
+    "size": 133254
+  },
+  {
+    "idx": 50,
+    "label": "Пинцет",
+    "term": "tweezer",
+    "file": "image_50.jpg",
+    "size": 48836
+  }
+]
