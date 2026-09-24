@@ -102,7 +102,7 @@ class LabelListController extends Controller
      *
      * GET /api/label-list/{labelList}/generate
      */
-    public function generate(LabelList $labelList): Response
+    public function generate(LabelList $labelList): Response|JsonResponse
     {
         $labelList->load(['labelPreset.font', 'items.code', 'stores.code']);
 

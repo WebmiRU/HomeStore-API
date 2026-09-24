@@ -9,6 +9,7 @@ use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Http\JsonResponse;
 
 class LabelController extends Controller
 {
@@ -50,7 +51,7 @@ class LabelController extends Controller
      *   }
      * }
      */
-    public function generate(Request $request): Response
+    public function generate(Request $request): Response|JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'labels' => ['required', 'array', 'min:1'],
