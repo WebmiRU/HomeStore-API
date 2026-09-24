@@ -84,7 +84,7 @@ deploy:
     - echo "$KUBE_CONFIG" > /root/.kube/config
   script:
     - echo "Deploying $PHP_IMAGE:$TAG / $WEB_IMAGE:$WEB_TAG to $KUBE_NAMESPACE"
-    - kubectl set image deployment/api-app api-app=$PHP_IMAGE:$TAG -n $KUBE_NAMESPACE
+    - kubectl set image deployment/api-app "api-app=$PHP_IMAGE:$TAG" "migrate=$PHP_IMAGE:$TAG" -n $KUBE_NAMESPACE
     - kubectl rollout status deployment/api-app -n $KUBE_NAMESPACE --timeout=300s
     - kubectl set image deployment/api-web api-web=$WEB_IMAGE:$WEB_TAG -n $KUBE_NAMESPACE
     - kubectl rollout status deployment/api-web -n $KUBE_NAMESPACE --timeout=300s
