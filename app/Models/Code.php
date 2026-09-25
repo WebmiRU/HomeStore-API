@@ -34,6 +34,16 @@ class Code extends Model
         return $this->belongsTo(Item::class);
     }
 
+    /**
+     * Набор этикеток, в котором код был напечатан. Не NULL — только у кодов
+     * из сгенерированных наборов; обычные коды предметов и хранилищ
+     * к наборам не относятся.
+     */
+    public function labelList()
+    {
+        return $this->belongsTo(LabelList::class);
+    }
+
     protected static function applyAccessibilityScope(Builder $builder, int $userId): void
     {
         $builder->where('code.user_id', $userId)

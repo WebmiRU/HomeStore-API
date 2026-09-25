@@ -22,6 +22,7 @@ class LabelListResource extends JsonResource
             'label_preset'    => new LabelPresetResource($this->whenLoaded('labelPreset')),
             'items'           => ItemResource::collection($this->whenLoaded('items')),
             'stores'          => StoreResource::collection($this->whenLoaded('stores')),
+            'codes_count'     => $this->whenCounted('codes'),
         ];
     }
 }

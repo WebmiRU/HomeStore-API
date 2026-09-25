@@ -40,4 +40,16 @@ class LabelList extends Model
         return $this->belongsToMany(Store::class, 'label_list_m2m_store')
             ->withTimestamps();
     }
+
+    /**
+     * Коды, напечатанные в этом наборе.
+     *
+     * У набора с предметами/хранилищами пусто: там печатаются их собственные
+     * коды. Непустой список означает набор безымянных этикеток, где каждый код
+     * принадлежит набору и не привязан ни к одному объекту.
+     */
+    public function codes()
+    {
+        return $this->hasMany(Code::class);
+    }
 }

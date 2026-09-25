@@ -115,6 +115,7 @@ Route::prefix('label-list')->controller(LabelListController::class)->group(funct
     Route::get('{labelList}/generate', 'generate');
     Route::get('{model}', 'get');
     Route::post('/', 'post');
+    Route::post('/blank', 'blank');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
     Route::post('{labelList}/item/{item}', 'attachItem');

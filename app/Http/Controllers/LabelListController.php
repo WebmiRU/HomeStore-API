@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreBlankLabelListRequest;
 use App\Http\Requests\StoreLabelListRequest;
 use App\Http\Requests\UpdateLabelListRequest;
 use App\Http\Resources\LabelListResource;
 use App\Models\Item;
 use App\Models\LabelList;
+use App\Models\LabelPreset;
 use App\Models\Store;
 use App\Services\Pdf\LabelPdfService;
+use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class LabelListController extends Controller
 {
@@ -23,6 +28,7 @@ class LabelListController extends Controller
     {
         return LabelListResource::collection(
             LabelList::with(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
+                ->withCount('codes')
                 ->orderByDesc('id')
                 ->paginate()
         );
@@ -32,6 +38,7 @@ class LabelListController extends Controller
     {
         return LabelListResource::collection(
             LabelList::with(['labelPreset.user', 'items', 'stores', 'user', 'items.user', 'stores.user'])
+                ->withCount('codes')
                 ->orderByDesc('id')
                 ->get()
         );
@@ -41,6 +48,7 @@ class LabelListController extends Controller
     {
         return new LabelListResource(
             $model->load(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
+                ->loadCount('codes')
         );
     }
 
@@ -53,12 +61,66 @@ class LabelListController extends Controller
             ->setStatusCode(201);
     }
 
+    /**
+     * Создаёт набор безымянных этикеток: столько свободных кодов, сколько
+     * помещается на лист по шаблону, привязанных к этому набору.
+     *
+     * Всё в одной транзакции — набор не должен существовать без своих кодов.
+     *
+     * POST /api/label-list/blank
+     */
+    public function blank(StoreBlankLabelListRequest $request): JsonResponse
+    {
+        $preset = LabelPreset::findOrFail($request->validated('label_preset_id'));
+        $count = $preset->layout()['per_page'];
+
+        $list = DB::transaction(function () use ($preset, $count): LabelList {
+            // Название собирается из id, а id известен только после вставки,
+            // поэтому сначала ставим заведомо уникальное временное имя.
+            $list = LabelList::create([
+                'title'           => 'tmp-' . Str::uuid(),
+                'label_preset_id' => $preset->id,
+            ]);
+
+            $now = now();
+            $userId = CurrentUser::id();
+            $codes = [];
+
+            for ($i = 0; $i < $count; $i++) {
+                $codes[] = [
+                    // UUIDv7 без дефисов: символ DataMatrix на два модуля
+                    // меньше, чем у дефисной записи, при той же ячейке.
+                    'code'          => str_replace('-', '', (string) Str::uuid7()),
+                    'user_id'       => $userId,
+                    'label_list_id' => $list->id,
+                    'created_at'    => $now,
+                    'updated_at'    => $now,
+                ];
+            }
+
+            // Одной вставкой: codes по одной через create() — это count
+            // обращений к БД вместо одного.
+            foreach (array_chunk($codes, 500) as $chunk) {
+                DB::table('code')->insert($chunk);
+            }
+
+            $list->update(['title' => 'Безымянные этикетки ' . $list->id]);
+
+            return $list;
+        });
+
+        return (new LabelListResource($list->load(['labelPreset.user', 'user'])->loadCount('codes')))
+            ->response()
+            ->setStatusCode(201);
+    }
+
     public function put(UpdateLabelListRequest $request, LabelList $model): LabelListResource
     {
         $model->update($request->validated());
 
         return new LabelListResource(
             $model->load(['labelPreset.user', 'items.code', 'stores.code', 'user', 'items.user', 'stores.user'])
+                ->loadCount('codes')
         );
     }
 
@@ -104,7 +166,7 @@ class LabelListController extends Controller
      */
     public function generate(LabelList $labelList): Response|JsonResponse
     {
-        $labelList->load(['labelPreset.font', 'items.code', 'stores.code']);
+        $labelList->load(['labelPreset.font', 'items.code', 'stores.code', 'codes']);
 
         $labels = [];
 
@@ -126,34 +188,20 @@ class LabelListController extends Controller
             }
         }
 
+        // Собственные коды набора (безымянные этикетки). У них нет названия,
+        // поэтому title пустой — шаблон с show_text=false отрисует только код.
+        foreach ($labelList->codes as $code) {
+            $labels[] = [
+                'code'  => $code->code,
+                'title' => '',
+            ];
+        }
+
         if (empty($labels)) {
             return response()->json(['error' => 'Нет кодов для генерации этикеток'], 422);
         }
 
-        $options = [];
-        $preset = $labelList->labelPreset;
-
-        if ($preset) {
-            $options = [
-                'page_width' => $preset->page_width,
-                'page_height' => $preset->page_height,
-                'page_margin_top' => $preset->page_margin_top,
-                'page_margin_right' => $preset->page_margin_right,
-                'page_margin_bottom' => $preset->page_margin_bottom,
-                'page_margin_left' => $preset->page_margin_left,
-                'cell_width' => $preset->cell_width,
-                'cell_height' => $preset->cell_height,
-                'cell_pad_top' => $preset->cell_pad_top,
-                'cell_pad_right' => $preset->cell_pad_right,
-                'cell_pad_bottom' => $preset->cell_pad_bottom,
-                'cell_pad_left' => $preset->cell_pad_left,
-                'barcode_position' => $preset->barcode_position,
-                'barcode_size' => $preset->barcode_size,
-                'font_family' => $preset->font->key ?? 'helvetica',
-                'font_size_min' => $preset->font_size_min,
-                'font_size_max' => $preset->font_size_max,
-            ];
-        }
+        $options = $labelList->labelPreset?->toOptions() ?? [];
 
         $filename = 'labels-'.mb_ereg_replace('[^a-zA-Z0-9а-яА-Я_-]', '_', $labelList->title).'.pdf';
         $pdf = $this->labelService->generate($labels, $options);
