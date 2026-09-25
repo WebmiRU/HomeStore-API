@@ -63,6 +63,9 @@ Route::prefix('audit-log')->controller(AuditLogController::class)->group(functio
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {
     Route::get('/', 'index');
     Route::get('search', 'search');
+    Route::get('orphans', 'orphans');
+    Route::get('orphans/preview', 'orphansPreview');
+    Route::delete('orphans', 'destroyOrphans');
 });
 
 Route::prefix('operation')->controller(OperationController::class)->group(function (): void {

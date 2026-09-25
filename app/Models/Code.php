@@ -67,4 +67,36 @@ class Code extends Model
         $builder->orderByRaw('(code.user_id = ?) DESC', [$userId])
             ->orderByDesc('code.id');
     }
+
+    /**
+     * Осиротевшие коды: не привязаны ни к предмету, ни к хранилищу,
+     * ни к набору этикеток.
+     *
+     * Условие по label_list_id здесь не косметика. Свободный код, который
+     * принадлежит живому набору, — это рабочая безымянная наклейка: она
+     * наклеена и ждёт привязки, удалять её нельзя. Осиротевшим код
+     * становится только тогда, когда набор удалён, а набор удаляют
+     * намеренно, оставляя коды на наклейках.
+     *
+     * Глобальный scope AccessibleByUser добавляет свои условия скобкой,
+     * поэтому AND-условия этого scope не разъезжаются с его OR-цепочкой.
+     */
+    public function scopeOrphaned(Builder $builder): void
+    {
+        $builder->whereNull('code.item_id')
+            ->whereNull('code.store_id')
+            ->whereNull('code.label_list_id');
+    }
+
+    /**
+     * Код старше указанного числа дней. 0 — без ограничения по возрасту.
+     */
+    public function scopeOlderThan(Builder $builder, int $days): void
+    {
+        if ($days <= 0) {
+            return;
+        }
+
+        $builder->where('code.created_at', '<', now()->subDays($days));
+    }
 }
