@@ -131,8 +131,26 @@ class ItemController extends Controller
             ]);
         }
 
+        // Свободный код (например, напечатанный в наборе безымянных этикеток)
+        // переиспользуем, а не плодим вторую строку с тем же значением:
+        // уникальность code в БД не гарантирована, дубль разошёлся бы по
+        // поиску и по набору. link на label_list сохраняется — код остаётся
+        // частью своего набора.
+        $free = Code::where('code', $code)
+            ->whereNull('item_id')
+            ->whereNull('store_id')
+            ->orderByDesc('id')
+            ->first();
+
         // Дубли кодов разрешены — просто заменяем связку этого предмета.
         Code::where('item_id', $item->id)->delete();
+
+        if ($free !== null) {
+            $free->update(['item_id' => $item->id]);
+
+            return;
+        }
+
         Code::create(['code' => $code, 'item_id' => $item->id]);
     }
 

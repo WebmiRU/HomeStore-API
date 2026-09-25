@@ -7,6 +7,7 @@ use App\Http\Requests\StoreOperationRequest;
 use App\Models\Code;
 use App\Models\Item;
 use App\Services\AuditLogService;
+use App\Support\CodeFormat;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -217,18 +218,6 @@ class OperationController extends Controller
 
     private function codeCandidates(string $code): array
     {
-        $candidates = [$code];
-
-        // «Голый» UUID (32 hex-символа) приводим к дефисному виду для совместимости
-        if (strlen($code) === 32 && ctype_xdigit($code)) {
-            $lower = strtolower($code);
-            $candidates[] = substr($lower, 0, 8) . '-'
-                . substr($lower, 8, 4) . '-'
-                . substr($lower, 12, 4) . '-'
-                . substr($lower, 16, 4) . '-'
-                . substr($lower, 20);
-        }
-
-        return $candidates;
+        return CodeFormat::candidates($code);
     }
 }
