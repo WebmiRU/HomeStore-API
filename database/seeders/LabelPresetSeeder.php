@@ -77,5 +77,66 @@ class LabelPresetSeeder extends Seeder
                 );
             }
         }
+
+        $this->seedSystemMini($fontId);
+    }
+
+    /**
+     * Системный шаблон мини-этикеток: только код, без подписи.
+     *
+     * Общий для всех пользователей, но не редактируемый и не удаляемый —
+     * на нём держится генерация наборов безымянных этикеток, и произвольная
+     * правка геометрии сломала бы их.
+     *
+     * Геометрия: ячейка 12 мм, символ 20x20 модулей по 0,5 мм = 10 мм,
+     * белое поле 1 мм (2X — минимум ISO 16022). На A4 с полями 10 мм
+     * помещается 15x23 = 345 этикеток.
+     */
+    private function seedSystemMini(int|string|null $fontId): void
+    {
+        $mini = [
+            'title'              => 'Мини-этикетки 12×12 (без текста)',
+            'page_width'         => 210.0,
+            'page_height'        => 297.0,
+            'page_margin_top'    => 10.0,
+            'page_margin_right'  => 10.0,
+            'page_margin_bottom' => 10.0,
+            'page_margin_left'   => 10.0,
+            'cell_width'         => 12.0,
+            'cell_height'        => 12.0,
+            'cell_pad_top'       => 1.0,
+            'cell_pad_right'     => 1.0,
+            'cell_pad_bottom'    => 1.0,
+            'cell_pad_left'      => 1.0,
+            'barcode_position'   => 'left',
+            'barcode_text_gap'   => 0.0,
+            'barcode_size'       => 10.0,
+            'show_text'          => false,
+            'font_id'            => $fontId,
+            'font_size_min'      => 5.0,
+            'font_size_max'      => 24.0,
+            'font_size_step'     => 0.5,
+            'line_height_factor' => 1.25,
+            'is_system'          => true,
+            'user_id'            => null,
+        ];
+
+        // Ищем именно системный шаблон: обычный (user_id IS NULL, is_system
+        // false) с тем же названием — это осиротевший шаблон удалённого
+        // пользователя, и трогать его нельзя.
+        $existing = DB::table('label_preset')
+            ->where('title', $mini['title'])
+            ->where('is_system', true)
+            ->first();
+
+        if ($existing !== null) {
+            DB::table('label_preset')
+                ->where('id', $existing->id)
+                ->update($mini + ['updated_at' => now()]);
+
+            return;
+        }
+
+        DB::table('label_preset')->insert($mini + ['created_at' => now(), 'updated_at' => now()]);
     }
 }

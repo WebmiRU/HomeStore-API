@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\OwnedByUser;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class LabelPreset extends Model
@@ -29,6 +30,7 @@ class LabelPreset extends Model
         'barcode_position',
         'barcode_text_gap',
         'barcode_size',
+        'show_text',
         'font_id',
         'font_size_min',
         'font_size_max',
@@ -36,6 +38,26 @@ class LabelPreset extends Model
         'line_height_factor',
         'user_id',
     ];
+
+    protected $casts = [
+        'is_system' => 'boolean',
+        'show_text' => 'boolean',
+    ];
+
+    /**
+     * Пользователь видит свои шаблоны и общие системные.
+     *
+     * Системные опознаются по is_system, а не по user_id IS NULL: у
+     * осиротевших после удаления пользователя шаблонов user_id тоже NULL,
+     * и трактовка «NULL — значит системный» выдала бы их наружу.
+     */
+    protected static function applyOwnershipScope(Builder $builder, int $userId): void
+    {
+        $builder->where(function (Builder $q) use ($userId): void {
+            $q->where('label_preset.user_id', $userId)
+                ->orWhere('label_preset.is_system', true);
+        });
+    }
 
     public function user()
     {
@@ -98,6 +120,7 @@ class LabelPreset extends Model
             'barcode_position'   => $this->barcode_position,
             'barcode_text_gap'   => $this->barcode_text_gap,
             'barcode_size'       => $this->barcode_size,
+            'show_text'          => (bool) $this->show_text,
             'font_family'        => $this->font?->key ?? 'robotocondensedb',
             'font_size_min'      => $this->font_size_min,
             'font_size_max'      => $this->font_size_max,

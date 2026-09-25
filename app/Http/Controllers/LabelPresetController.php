@@ -38,6 +38,8 @@ class LabelPresetController extends Controller
 
     public function put(UpdateLabelPresetRequest $request, LabelPreset $model): LabelPresetResource
     {
+        abort_if($model->is_system, 403, 'Системный шаблон нельзя изменять');
+
         $model->update($request->validated());
 
         return new LabelPresetResource($model->load(['font', 'user']));
@@ -45,6 +47,8 @@ class LabelPresetController extends Controller
 
     public function delete(LabelPreset $model): JsonResponse
     {
+        abort_if($model->is_system, 403, 'Системный шаблон нельзя удалить');
+
         // Удаляем дочерние списки через Eloquent, чтобы обзерверы записали
         // label_list.deleted в журнал (каскад на уровне БД их бы пропустил).
         DB::transaction(function () use ($model): void {

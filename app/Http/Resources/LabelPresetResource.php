@@ -33,6 +33,8 @@ class LabelPresetResource extends JsonResource
             'barcode_position'    => $this->barcode_position,
             'barcode_text_gap'    => $this->barcode_text_gap,
             'barcode_size'        => $this->barcode_size,
+            'show_text'           => (bool) $this->show_text,
+            'is_system'           => (bool) $this->is_system,
             'font_id'             => $this->font_id,
             'font_size_min'       => $this->font_size_min,
             'font_size_max'       => $this->font_size_max,

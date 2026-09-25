@@ -30,6 +30,7 @@ class UpdateLabelPresetRequest extends FormRequest
             'barcode_position'    => ['sometimes', 'string', 'in:left,right,top,bottom'],
             'barcode_text_gap'    => ['sometimes', 'numeric', 'min:0'],
             'barcode_size'        => ['sometimes', 'numeric', 'min:1'],
+            'show_text'           => ['sometimes', 'boolean'],
             'font_id'             => ['nullable', 'integer', 'exists:font,id'],
             'font_size_min'       => ['sometimes', 'numeric', 'min:1'],
             'font_size_max'       => ['sometimes', 'numeric', 'min:1'],

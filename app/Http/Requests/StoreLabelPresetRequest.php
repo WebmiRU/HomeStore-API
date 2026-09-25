@@ -30,6 +30,7 @@ class StoreLabelPresetRequest extends FormRequest
             'barcode_position'    => ['required', 'string', 'in:left,right,top,bottom'],
             'barcode_text_gap'    => ['required', 'numeric', 'min:0'],
             'barcode_size'        => ['required', 'numeric', 'min:1'],
+            'show_text'           => ['sometimes', 'boolean'],
             'font_id'             => ['nullable', 'integer', 'exists:font,id'],
             'font_size_min'       => ['required', 'numeric', 'min:1'],
             'font_size_max'       => ['required', 'numeric', 'min:1'],

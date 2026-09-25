@@ -43,6 +43,10 @@ class LabelPdfService
         // Размер DataMatrix-кода (мм, квадрат)
         'barcode_size' => 13.0,
 
+        // Рисовать ли подпись в ячейке. false — только код, для мелких
+        // этикеток, где тексту рядом с символом негде находиться.
+        'show_text' => true,
+
         // Параметры шрифта
         'font_family' => 'robotocondensedb',
         'font_size_min' => 5.0,
@@ -208,6 +212,13 @@ class LabelPdfService
         ));
 
         // --- Адаптивный текст ---
+        // В режиме «только код» (show_text = false) подпись не рисуется вовсе:
+        // пустой title у безымянных этикеток обрабатываем так же, чтобы
+        // не наполнять страницу пустыми строками вхолостую.
+        if (($cfg['show_text'] ?? true) === false || trim($title) === '') {
+            return;
+        }
+
         $textY = $y + $cfg['cell_pad_top'];
         $textW = $this->textAreaWidth($cfg);
         $textH = $cfg['cell_height'] - $cfg['cell_pad_top'] - $cfg['cell_pad_bottom'];

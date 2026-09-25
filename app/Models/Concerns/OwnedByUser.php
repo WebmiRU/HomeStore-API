@@ -24,8 +24,19 @@ trait OwnedByUser
 
         static::addGlobalScope('ownedByUser', function (Builder $builder) {
             if (CurrentUser::id() !== null) {
-                $builder->where($builder->getModel()->getTable().'.user_id', CurrentUser::id());
+                static::applyOwnershipScope($builder, CurrentUser::id());
             }
         });
+    }
+
+    /**
+     * Ограничивает выборку записями текущего пользователя.
+     *
+     * Модель может переопределить метод, чтобы выдать дополнительные записи
+     * (например, общие системные), не отказываясь от фильтрации по владельцу.
+     */
+    protected static function applyOwnershipScope(Builder $builder, int $userId): void
+    {
+        $builder->where($builder->getModel()->getTable().'.user_id', $userId);
     }
 }
