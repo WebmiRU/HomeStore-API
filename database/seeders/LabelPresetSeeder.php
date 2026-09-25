@@ -88,26 +88,28 @@ class LabelPresetSeeder extends Seeder
      * на нём держится генерация наборов безымянных этикеток, и произвольная
      * правка геометрии сломала бы их.
      *
-     * Геометрия: ячейка 12 мм, символ 20x20 модулей по 0,5 мм = 10 мм,
-     * белое поле 1 мм (2X — минимум ISO 16022). На A4 с полями 10 мм
-     * помещается 15x23 = 345 этикеток.
+     * Геометрия: ячейка 16 мм, символ 20x20 модулей по 0,5 мм = 10 мм,
+     * белое поле 3 мм с каждой стороны (6X при минимуме ISO 16022 в 2X).
+     * Поле заложено с запасом сверх стандарта: наклейки режут руками, и
+     * неровный срез иначе либо зацепит символ, либо срежет тихую зону.
+     * На A4 с полями 10 мм помещается 11x17 = 187 этикеток.
      */
     private function seedSystemMini(int|string|null $fontId): void
     {
         $mini = [
-            'title'              => 'Мини-этикетки 12×12 (без текста)',
+            'title'              => 'Мини-этикетки 16×16 (без текста)',
             'page_width'         => 210.0,
             'page_height'        => 297.0,
             'page_margin_top'    => 10.0,
             'page_margin_right'  => 10.0,
             'page_margin_bottom' => 10.0,
             'page_margin_left'   => 10.0,
-            'cell_width'         => 12.0,
-            'cell_height'        => 12.0,
-            'cell_pad_top'       => 1.0,
-            'cell_pad_right'     => 1.0,
-            'cell_pad_bottom'    => 1.0,
-            'cell_pad_left'      => 1.0,
+            'cell_width'         => 16.0,
+            'cell_height'        => 16.0,
+            'cell_pad_top'       => 3.0,
+            'cell_pad_right'     => 3.0,
+            'cell_pad_bottom'    => 3.0,
+            'cell_pad_left'       => 3.0,
             'barcode_position'   => 'left',
             'barcode_text_gap'   => 0.0,
             'barcode_size'       => 10.0,
@@ -121,13 +123,11 @@ class LabelPresetSeeder extends Seeder
             'user_id'            => null,
         ];
 
-        // Ищем именно системный шаблон: обычный (user_id IS NULL, is_system
-        // false) с тем же названием — это осиротевший шаблон удалённого
-        // пользователя, и трогать его нельзя.
-        $existing = DB::table('label_preset')
-            ->where('title', $mini['title'])
-            ->where('is_system', true)
-            ->first();
+        // Ищем по is_system, а не по названию: системный шаблон по
+        // определению один, и название в него входит (12x12 -> 16x16).
+        // Поиск по названию после переименования не нашёл бы старый шаблон
+        // и завёл бы второй, а старый остался бы неуправляемым.
+        $existing = DB::table('label_preset')->where('is_system', true)->first();
 
         if ($existing !== null) {
             DB::table('label_preset')

@@ -13,8 +13,8 @@ use PHPUnit\Framework\TestCase;
 class LabelPresetLayoutTest extends TestCase
 {
     private function mini(
-        int|float $cellWidth = 12,
-        int|float $cellHeight = 12,
+        int|float $cellWidth = 16,
+        int|float $cellHeight = 16,
         int|float $margin = 10,
     ): LabelPreset {
         // Системный мини-шаблон: A4, поля 10 мм, ячейка 12 мм.
@@ -30,22 +30,22 @@ class LabelPresetLayoutTest extends TestCase
         ]);
     }
 
-    public function test_system_preset_fits_345_labels(): void
+    public function test_system_preset_fits_187_labels(): void
     {
         $this->assertSame(
-            ['columns' => 15, 'rows' => 23, 'per_page' => 345],
+            ['columns' => 11, 'rows' => 17, 'per_page' => 187],
             $this->mini()->layout()
         );
     }
 
     public function test_layout_ignores_the_remainder(): void
     {
-        // 277 доступной высоты / 12 = 23,08 — вниз уходит 23 ряда,
-        // остаток в 1 мм пустым остаётся, а не уходит в 24-й ряд.
+        // 277 доступной высоты / 16 = 17,31 — вниз уходит 17 рядов,
+        // остаток в 5 мм пустым остаётся, а не уходит в 18-й ряд.
         $layout = $this->mini()->layout();
 
-        $this->assertSame(23, $layout['rows']);
-        $this->assertLessThan(12, (297 - 20) - $layout['rows'] * 12);
+        $this->assertSame(17, $layout['rows']);
+        $this->assertLessThan(16, (297 - 20) - $layout['rows'] * 16);
     }
 
     public function test_per_page_is_the_product(): void
