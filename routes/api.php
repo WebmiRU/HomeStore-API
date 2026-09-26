@@ -2,16 +2,21 @@
 
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CodeController;
+use App\Http\Controllers\DictionaryController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\LabelListController;
 use App\Http\Controllers\LabelPresetController;
 use App\Http\Controllers\OperationController;
+use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyGroupController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\ThumbnailController;
+use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserAuthController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\WarehouseController;
@@ -58,6 +63,61 @@ Route::prefix('audit-log')->controller(AuditLogController::class)->group(functio
     Route::get('/', 'index');
     Route::get('stats', 'stats');
     Route::get('balance', 'balance');
+});
+
+// Каталог предметов. Набор свойств у категории вычисляется по уже
+// заполненным значениям, поэтому отдельный маршрут и возвращает его
+// по требованию, а не лежит в теле категории.
+Route::prefix('category')->controller(CategoryController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::get('{model}/properties', 'properties');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+Route::prefix('property')->controller(PropertyController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+Route::prefix('property-group')->controller(PropertyGroupController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+});
+
+// Значения справочника живут под справочником: своего user_id у них нет,
+// и top-level маршруты были бы путём к чужому справочнику.
+Route::prefix('dictionary')->controller(DictionaryController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+    Route::get('{model}/values', 'values');
+    Route::post('{model}/values', 'storeValue');
+    Route::put('{model}/values/{value}', 'updateValue');
+    Route::delete('{model}/values/{value}', 'deleteValue');
+});
+
+Route::prefix('unit')->controller(UnitController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
 });
 
 Route::prefix('code')->controller(CodeController::class)->group(function (): void {

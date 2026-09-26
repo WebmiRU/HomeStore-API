@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Unit;
 use App\Models\UserProfile;
 use App\Models\Warehouse;
+use App\Support\DefaultUnits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -51,5 +53,9 @@ class UserRegistrationService
             'title'   => self::DEFAULT_WAREHOUSE_TITLE,
             'user_id' => $user->id,
         ]);
+
+        foreach (DefaultUnits::definition() as $unit) {
+            Unit::create($unit + ['user_id' => $user->id]);
+        }
     }
 }

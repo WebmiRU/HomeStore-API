@@ -33,10 +33,15 @@ class ItemResource extends JsonResource
                 'title'       => $this->title,
                 'title_print' => $this->title_print,
                 'store_id'    => $this->store_id,
+                'category_id' => $this->category_id,
                 'quantity'    => $this->quantity,
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
+            'category' => $this->whenLoaded('category', fn() => $this->category === null ? null : [
+                'id'    => $this->category->id,
+                'title' => $this->category->title,
+            ]),
             'store'   => $this->whenLoaded('store', function () {
                 $chain = [$this->store->getAttributes()];
                 foreach (array_reverse($this->store->ancestors()) as $ancestor) {
@@ -45,6 +50,10 @@ class ItemResource extends JsonResource
                 return $chain;
             }),
             'images'  => ImageResource::collection($this->whenLoaded('images')),
+            // В списке предметов значения не подгружаются, и поля в ответе
+            // просто нет — карточка предмета их показывает, а список обошёл
+            // бы ещё одну выборку на страницу впустую.
+            'properties' => ItemPropertyResource::collection($this->whenLoaded('propertyValues')),
         ];
     }
 }

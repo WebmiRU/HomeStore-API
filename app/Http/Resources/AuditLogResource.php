@@ -7,6 +7,18 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class AuditLogResource extends JsonResource
 {
+    /**
+     * Типы целей в порядке проверки. Порядок важен только для читаемости:
+     * в реальной записи заполнена ровно одна колонка-цель, а если колонки
+     * обнулились удалением сущности, тип и id берутся из payload.
+     *
+     * @var string[]
+     */
+    private const ENTITY_TYPES = [
+        'item', 'store', 'warehouse', 'label_preset', 'label_list', 'access_grant', 'user',
+        'category', 'property', 'property_group', 'dictionary', 'dictionary_value', 'unit',
+    ];
+
     public function toArray(Request $request): array
     {
         return [
@@ -29,9 +41,8 @@ class AuditLogResource extends JsonResource
             return $this->payload['entity_type'];
         }
 
-        foreach (['item', 'store', 'warehouse', 'label_preset', 'label_list', 'access_grant', 'user'] as $type) {
-            $column = $type === 'user' ? 'target_user_id' : "{$type}_id";
-            if ($this->{$column} !== null) {
+        foreach (self::ENTITY_TYPES as $type) {
+            if ($this->columnFor($type) !== null) {
                 return $type;
             }
         }
@@ -45,13 +56,23 @@ class AuditLogResource extends JsonResource
             return (int) $this->payload['entity_id'];
         }
 
-        foreach (['item', 'store', 'warehouse', 'label_preset', 'label_list', 'access_grant', 'user'] as $type) {
-            $column = $type === 'user' ? 'target_user_id' : "{$type}_id";
-            if ($this->{$column} !== null) {
-                return (int) $this->{$column};
+        foreach (self::ENTITY_TYPES as $type) {
+            $value = $this->columnFor($type);
+
+            if ($value !== null) {
+                return (int) $value;
             }
         }
 
         return null;
+    }
+
+    /**
+     * У пользователя колонка-цель называется не «user_id», а «target_user_id»:
+     * actor_id у записи уже занят тем, кто действие совершил.
+     */
+    private function columnFor(string $type): mixed
+    {
+        return $this->{$type === 'user' ? 'target_user_id' : "{$type}_id"};
     }
 }

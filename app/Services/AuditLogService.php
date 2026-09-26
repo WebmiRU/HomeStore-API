@@ -28,7 +28,10 @@ class AuditLogService
      * @param  AuditAction  $action
      * @param  string|null  $entityColumn одна из: item_id, store_id, warehouse_id,
      *                                    label_preset_id, label_list_id, access_grant_id,
-     *                                    target_user_id; null — событие без цели (label.generate, auth.*)
+     *                                    target_user_id, category_id, property_id,
+     *                                    property_group_id, dictionary_id,
+     *                                    dictionary_value_id, unit_id;
+     *                                    null — событие без цели (label.generate, auth.*)
      * @param  int|null  $entityId
      * @param  int  $ownerId    владелец домена (для скоупа видимости)
      * @param  array  $payload   детальные данные события
@@ -59,6 +62,8 @@ class AuditLogService
             $allowed = [
                 'item_id', 'store_id', 'warehouse_id', 'label_preset_id',
                 'label_list_id', 'access_grant_id', 'target_user_id',
+                'category_id', 'property_id', 'property_group_id',
+                'dictionary_id', 'dictionary_value_id', 'unit_id',
             ];
 
             if (! in_array($entityColumn, $allowed, true)) {
@@ -149,6 +154,12 @@ class AuditLogService
             'label_list'    => ['label_list_id', 'user_id'],
             'access_grant'  => ['access_grant_id', 'owner_id'],
             'user'          => ['target_user_id', 'id'],
+            'category'      => ['category_id', 'user_id'],
+            'property'      => ['property_id', 'user_id'],
+            'property_group' => ['property_group_id', 'user_id'],
+            'dictionary'    => ['dictionary_id', 'user_id'],
+            'dictionary_value' => ['dictionary_value_id', 'user_id'],
+            'unit'          => ['unit_id', 'user_id'],
         ];
 
         if (! isset($map[$table])) {
@@ -157,7 +168,15 @@ class AuditLogService
 
         [$column, $ownerSource] = $map[$table];
 
-        return [$column, (int) $model->getKey(), (int) ($model->{$ownerSource} ?? 0)];
+        // У значения справочника своего user_id нет — владение выводится из
+        // справочника-родителя. Без этой ветки записи о значениях писались бы
+        // с owner_id = null и не были бы видны ни в списке журнала, ни в
+        // графиках: оба смотрят строго по владельцу домена.
+        $ownerId = $table === 'dictionary_value'
+            ? (int) ($model->dictionary?->user_id ?? 0)
+            : (int) ($model->{$ownerSource} ?? 0);
+
+        return [$column, (int) $model->getKey(), $ownerId];
     }
 
     private function snapshot(Model $model): array

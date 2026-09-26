@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreItemRequest;
 use App\Http\Requests\UpdateItemRequest;
 use App\Http\Resources\ItemResource;
+use App\Models\Category;
 use App\Models\Code;
 use App\Models\Item;
 use App\Models\Store;
-use Com\Tecnick\Barcode\Barcode;
 use App\Services\AccessService;
+use App\Services\ItemPropertyService;
+use Com\Tecnick\Barcode\Barcode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,18 +22,37 @@ use Illuminate\Validation\ValidationException;
 
 class ItemController extends Controller
 {
-    public function index(): ResourceCollection
+    public function __construct(
+        private readonly ItemPropertyService $propertyService,
+    ) {}
+
+    public function index(Request $request): ResourceCollection
     {
-        return ItemResource::collection(
-            Item::with(['code', 'store.parent', 'images', 'user'])
-                ->orderByDesc('id')
-                ->paginate()
-        );
+        // Значения свойств здесь не подгружаются: список предметов показывает
+        // заголовки, а подтягивание ещё одной строки на каждое заполненное
+        // поле на страницу в 15 предметов стоило бы дороже, чем весь остальной
+        // список. В карточке предмета значения уже есть.
+        $query = Item::with(['code', 'store.parent', 'category', 'images', 'user']);
+
+        // Фильтр по категории вместе с её вложенными. Своё условие — в
+        // скобках: скоуп AccessibleByUser добавляет orWhere, и приписанный
+        // после него and без скобок переписал бы смысл на «доступные по
+        // складу подходят всегда», то есть фильтр просто не применился бы.
+        if ($request->filled('category_id')) {
+            $categoryId = $request->integer('category_id');
+
+            $query->where(function (Builder $builder) use ($categoryId): void {
+                $builder->where('category_id', $categoryId)
+                    ->orWhereIn('category_id', Category::find($categoryId)?->descendantIds() ?? []);
+            });
+        }
+
+        return ItemResource::collection($query->orderByDesc('id')->paginate());
     }
 
     public function get(Item $model): ItemResource
     {
-        return new ItemResource($model->load(['code', 'store.parent', 'images', 'user']));
+        return new ItemResource($model->load($this->relations()));
     }
 
     public function post(StoreItemRequest $request): JsonResponse
@@ -40,7 +63,8 @@ class ItemController extends Controller
 
         $item = DB::transaction(function () use ($data) {
             $code = isset($data['code']) ? trim((string) $data['code']) : '';
-            unset($data['code']);
+            $properties = $this->normalizeProperties($data);
+            unset($data['code'], $data['properties']);
 
             $item = Item::create($data);
 
@@ -61,10 +85,14 @@ class ItemController extends Controller
                 $this->bindCodeToItem($item, $code);
             }
 
+            if ($properties !== null) {
+                $this->propertyService->sync($item, $properties);
+            }
+
             return $item;
         });
 
-        return (new ItemResource($item->load(['code', 'store.parent', 'images', 'user'])))
+        return (new ItemResource($item->load($this->relations())))
             ->response()
             ->setStatusCode(201);
     }
@@ -76,9 +104,14 @@ class ItemController extends Controller
         DB::transaction(function () use ($request, $model) {
             $data = $request->validated();
             $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
-            unset($data['code']);
+            $properties = $this->normalizeProperties($data);
+            unset($data['code'], $data['properties']);
 
             $model->update($data);
+
+            if ($properties !== null) {
+                $this->propertyService->sync($model, $properties);
+            }
 
             if ($code === null) {
                 // Поле «code» не передано — связку не трогаем
@@ -94,7 +127,39 @@ class ItemController extends Controller
             $this->bindCodeToItem($model, $code);
         });
 
-        return new ItemResource($model->load(['code', 'store.parent', 'images', 'user']));
+        return new ItemResource($model->load($this->relations()));
+    }
+
+    /**
+     * Значения свойств из тела запроса либо null, когда раздела properties
+     * в теле нет вовсе.
+     *
+     * null — это «не трогать», а пустой массив — «очистить все значения».
+     * Различать приходится потому, что PUT шлёт только изменённые поля, и
+     * трактовка «нет ключа» как «пусто» стирала бы чужие заполненные поля при
+     * любом частичном обновлении.
+     *
+     * @param  array<string, mixed>  $data  результат $request->validated()
+     */
+    private function normalizeProperties(array $data): ?array
+    {
+        if (! array_key_exists('properties', $data)) {
+            return null;
+        }
+
+        return $this->propertyService->normalize($data['properties'] ?? []);
+    }
+
+    /**
+     * Всё, что показывает ресурс предмета, одной строкой — иначе список,
+     * карточка и ответ на сохранение расходились бы по составу полей, и
+     * интерфейс ловил бы «поле пропало» там, где оно просто не грузилось.
+     *
+     * @return string[]
+     */
+    private function relations(): array
+    {
+        return ['code', 'store.parent', 'category', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
     }
 
     private function canCreateItem(array $data): bool

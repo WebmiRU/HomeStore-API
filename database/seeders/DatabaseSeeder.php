@@ -22,6 +22,10 @@ class DatabaseSeeder extends Seeder
             DemoWarehouseSeeder::class,
             DemoItemsShelfSeeder::class,
             DemoItemsDrawerSeeder::class,
+            // Каталог и свойства идут после предметов: раскладывать их по
+            // категориям и заполнять значениями можно только когда предметы
+            // уже заведены.
+            DemoCatalogSeeder::class,
             DemoLabelListSeeder::class,
         ]);
     }

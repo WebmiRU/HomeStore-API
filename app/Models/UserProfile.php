@@ -83,4 +83,29 @@ class UserProfile extends Model
     {
         return $this->hasMany(Store::class, 'user_id');
     }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(Category::class, 'user_id');
+    }
+
+    public function properties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'user_id');
+    }
+
+    public function propertyGroups(): HasMany
+    {
+        return $this->hasMany(PropertyGroup::class, 'user_id');
+    }
+
+    public function dictionaries(): HasMany
+    {
+        return $this->hasMany(Dictionary::class, 'user_id');
+    }
+
+    public function units(): HasMany
+    {
+        return $this->hasMany(Unit::class, 'user_id');
+    }
 }

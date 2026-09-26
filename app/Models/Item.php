@@ -18,6 +18,7 @@ class Item extends Model
         'title',
         'title_print',
         'store_id',
+        'category_id',
         'quantity',
         'user_id',
     ];
@@ -42,6 +43,24 @@ class Item extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    /**
+     * Сначала по свойству, потом по sort: sort у всех свойств начинается с
+     * нуля, и сортировка только по нему оставляла бы порядок свойств
+     * произвольным — а список значений печатается на этикетке и должен
+     * быть одинаковым от загрузки к загрузке.
+     */
+    public function propertyValues()
+    {
+        return $this->hasMany(ItemProperty::class, 'item_id')
+            ->orderBy('item_property.property_id')
+            ->orderBy('item_property.sort');
     }
 
     public function images()

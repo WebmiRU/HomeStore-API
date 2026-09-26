@@ -3,17 +3,29 @@
 namespace App\Providers;
 
 use App\Models\AccessGrant;
+use App\Models\Category;
+use App\Models\Dictionary;
+use App\Models\DictionaryValue;
 use App\Models\Item;
 use App\Models\LabelList;
 use App\Models\LabelPreset;
+use App\Models\Property;
+use App\Models\PropertyGroup;
 use App\Models\Store;
+use App\Models\Unit;
 use App\Models\UserProfile;
 use App\Models\Warehouse;
 use App\Observers\AccessGrantObserver;
+use App\Observers\CategoryObserver;
+use App\Observers\DictionaryObserver;
+use App\Observers\DictionaryValueObserver;
 use App\Observers\ItemObserver;
 use App\Observers\LabelListObserver;
 use App\Observers\LabelPresetObserver;
+use App\Observers\PropertyGroupObserver;
+use App\Observers\PropertyObserver;
 use App\Observers\StoreObserver;
+use App\Observers\UnitObserver;
 use App\Observers\UserProfileObserver;
 use App\Observers\WarehouseObserver;
 use App\Services\Pdf\LabelPdfService;
@@ -41,5 +53,11 @@ class AppServiceProvider extends ServiceProvider
         LabelList::observe(LabelListObserver::class);
         AccessGrant::observe(AccessGrantObserver::class);
         UserProfile::observe(UserProfileObserver::class);
+        Category::observe(CategoryObserver::class);
+        Property::observe(PropertyObserver::class);
+        PropertyGroup::observe(PropertyGroupObserver::class);
+        Dictionary::observe(DictionaryObserver::class);
+        DictionaryValue::observe(DictionaryValueObserver::class);
+        Unit::observe(UnitObserver::class);
     }
 }

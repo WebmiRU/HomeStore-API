@@ -36,6 +36,30 @@ enum AuditAction: string
     case UserUpdated = 'user.updated';
     case UserDeleted = 'user.deleted';
 
+    case CategoryCreated = 'category.created';
+    case CategoryUpdated = 'category.updated';
+    case CategoryDeleted = 'category.deleted';
+
+    case PropertyCreated = 'property.created';
+    case PropertyUpdated = 'property.updated';
+    case PropertyDeleted = 'property.deleted';
+
+    case PropertyGroupCreated = 'property_group.created';
+    case PropertyGroupUpdated = 'property_group.updated';
+    case PropertyGroupDeleted = 'property_group.deleted';
+
+    case DictionaryCreated = 'dictionary.created';
+    case DictionaryUpdated = 'dictionary.updated';
+    case DictionaryDeleted = 'dictionary.deleted';
+
+    case DictionaryValueCreated = 'dictionary_value.created';
+    case DictionaryValueUpdated = 'dictionary_value.updated';
+    case DictionaryValueDeleted = 'dictionary_value.deleted';
+
+    case UnitCreated = 'unit.created';
+    case UnitUpdated = 'unit.updated';
+    case UnitDeleted = 'unit.deleted';
+
     case OperationReplenish = 'operation.replenish';
     case OperationWriteoff = 'operation.writeoff';
 

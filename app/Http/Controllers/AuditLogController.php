@@ -15,6 +15,7 @@ class AuditLogController extends Controller
 {
     private const ENTITY_TYPES = [
         'item', 'store', 'warehouse', 'label_preset', 'label_list', 'access_grant', 'user',
+        'category', 'property', 'property_group', 'dictionary', 'dictionary_value', 'unit',
     ];
 
     /**
@@ -256,6 +257,12 @@ class AuditLogController extends Controller
             'label_list'  => 'label_list_id',
             'access_grant' => 'access_grant_id',
             'user'        => 'target_user_id',
+            'category'    => 'category_id',
+            'property'    => 'property_id',
+            'property_group' => 'property_group_id',
+            'dictionary'  => 'dictionary_id',
+            'dictionary_value' => 'dictionary_value_id',
+            'unit'        => 'unit_id',
         ];
 
         abort_unless(isset($map[$type]), 422, "Неизвестный entity_type: {$type}");
@@ -274,6 +281,12 @@ class AuditLogController extends Controller
             . "WHEN label_list_id IS NOT NULL THEN 'label_list' "
             . "WHEN access_grant_id IS NOT NULL THEN 'access_grant' "
             . "WHEN target_user_id IS NOT NULL THEN 'user' "
+            . "WHEN category_id IS NOT NULL THEN 'category' "
+            . "WHEN property_id IS NOT NULL THEN 'property' "
+            . "WHEN property_group_id IS NOT NULL THEN 'property_group' "
+            . "WHEN dictionary_id IS NOT NULL THEN 'dictionary' "
+            . "WHEN dictionary_value_id IS NOT NULL THEN 'dictionary_value' "
+            . "WHEN unit_id IS NOT NULL THEN 'unit' "
             . "ELSE 'none' END)";
     }
 }
