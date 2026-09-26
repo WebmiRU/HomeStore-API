@@ -14,6 +14,7 @@ use App\Http\Controllers\OperationController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyGroupController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\StockOperationController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\ThumbnailController;
 use App\Http\Controllers\UnitController;
@@ -130,6 +131,20 @@ Route::prefix('code')->controller(CodeController::class)->group(function (): voi
 
 Route::prefix('operation')->controller(OperationController::class)->group(function (): void {
     Route::post('/', 'store');
+});
+
+// Журнал списаний и пополнений с откатами.
+Route::prefix('stock-operation')->controller(StockOperationController::class)->group(function (): void {
+    Route::get('/', 'index');
+    // summary выше {model}: иначе «summary» разбирается как id операции
+    // и сводка отдаёт 404.
+    Route::get('summary', 'summary');
+    Route::get('{model}', 'get');
+    Route::post('{model}/reverse', 'reverse');
+});
+
+Route::prefix('item')->controller(StockOperationController::class)->group(function (): void {
+    Route::get('{model}/movements', 'itemHistory');
 });
 
 Route::prefix('store')->controller(StoreController::class)->group(function (): void {

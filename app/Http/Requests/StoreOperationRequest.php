@@ -19,6 +19,11 @@ class StoreOperationRequest extends FormRequest
             'payload.*.code'    => ['required', 'string', 'min:8', 'max:256'],
             'payload.*.item_id' => ['nullable', 'integer', 'min:1'],
             'payload.*.quantity' => ['required', 'integer', 'min:1'],
+
+            // Комментарий один на операцию, а не на строку: пользователь
+            // сканирует пачку кодов и объясняет её одним текстом — «куда
+            // списали». Необязателен: заполнять должен быть возможностью.
+            'comment'           => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AuditAction;
+use App\Enums\StockDirection;
 use App\Http\Requests\StoreOperationRequest;
+use App\Http\Resources\StockOperationResource;
 use App\Models\Code;
 use App\Models\Item;
 use App\Services\AuditLogService;
+use App\Services\StockOperationService;
 use App\Support\CodeFormat;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
@@ -15,8 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class OperationController extends Controller
 {
-    public function __construct(private readonly AuditLogService $logs)
-    {
+    public function __construct(
+        private readonly AuditLogService $logs,
+        private readonly StockOperationService $stock,
+    ) {
     }
 
     public function store(StoreOperationRequest $request): JsonResponse
@@ -24,6 +29,8 @@ class OperationController extends Controller
         $validated = $request->validated();
         $type = $validated['type'];
         $payload = $validated['payload'];
+        $direction = StockDirection::fromAuditType($type);
+        $comment = $validated['comment'] ?? null;
 
         $appliedRows = [];
         $prepared = [];
@@ -161,6 +168,8 @@ class OperationController extends Controller
             ? AuditAction::OperationReplenish
             : AuditAction::OperationWriteoff;
 
+        $operation = $this->stock->record($direction, $comment, $appliedRows);
+
         foreach ($appliedRows as $appliedRow) {
             $this->logs->record(
                 $action,
@@ -174,14 +183,21 @@ class OperationController extends Controller
                     'delta'  => $appliedRow['after'] - $appliedRow['before'],
                     'before' => $appliedRow['before'],
                     'after'  => $appliedRow['after'],
+                    // Комментарий и номер операции: в журнале действий списание
+                    // и пополнение остаются отдельными записями, а объяснение
+                    // «куда списали» хранится один раз — в самой операции.
+                    'operation_id' => $operation->id,
+                    'comment'      => $operation->comment,
                 ],
             );
         }
 
         return response()->json([
-            'type'    => $type,
-            'payload' => $payload,
-            'rows'    => $appliedRows,
+            'type'       => $type,
+            'comment'    => $operation->comment,
+            'operation'  => (new StockOperationResource($operation->load('rows')))->resolve(),
+            'payload'    => $payload,
+            'rows'       => $appliedRows,
         ]);
     }
 
