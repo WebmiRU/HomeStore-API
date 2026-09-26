@@ -10,6 +10,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\LabelListController;
 use App\Http\Controllers\LabelPresetController;
+use App\Http\Controllers\VendorController;
 use App\Http\Controllers\OperationController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyGroupController;
@@ -77,6 +78,19 @@ Route::prefix('category')->controller(CategoryController::class)->group(function
     Route::post('/', 'post');
     Route::put('{model}', 'put');
     Route::delete('{model}', 'delete');
+});
+
+Route::prefix('vendor')->controller(VendorController::class)->group(function (): void {
+    Route::get('/', 'index');
+    Route::get('all', 'all');
+    Route::get('{model}', 'get');
+    Route::post('/', 'post');
+    Route::put('{model}', 'put');
+    Route::delete('{model}', 'delete');
+    // Логотип — одна картинка на запись, поэтому отдельные маршруты
+    // загрузки и снятия, а не many-to-many, как у фото предмета.
+    Route::post('{model}/logo', 'storeLogo');
+    Route::delete('{model}/logo', 'deleteLogo');
 });
 
 Route::prefix('property')->controller(PropertyController::class)->group(function (): void {

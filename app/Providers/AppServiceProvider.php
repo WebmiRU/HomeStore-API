@@ -14,6 +14,7 @@ use App\Models\PropertyGroup;
 use App\Models\Store;
 use App\Models\Unit;
 use App\Models\UserProfile;
+use App\Models\Vendor;
 use App\Models\Warehouse;
 use App\Observers\AccessGrantObserver;
 use App\Observers\CategoryObserver;
@@ -27,6 +28,7 @@ use App\Observers\PropertyObserver;
 use App\Observers\StoreObserver;
 use App\Observers\UnitObserver;
 use App\Observers\UserProfileObserver;
+use App\Observers\VendorObserver;
 use App\Observers\WarehouseObserver;
 use App\Services\Pdf\LabelPdfService;
 use Illuminate\Support\ServiceProvider;
@@ -59,5 +61,6 @@ class AppServiceProvider extends ServiceProvider
         Dictionary::observe(DictionaryObserver::class);
         DictionaryValue::observe(DictionaryValueObserver::class);
         Unit::observe(UnitObserver::class);
+        Vendor::observe(VendorObserver::class);
     }
 }

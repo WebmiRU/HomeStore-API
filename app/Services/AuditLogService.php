@@ -30,7 +30,8 @@ class AuditLogService
      *                                    label_preset_id, label_list_id, access_grant_id,
      *                                    target_user_id, category_id, property_id,
      *                                    property_group_id, dictionary_id,
-     *                                    dictionary_value_id, unit_id;
+     *                                    dictionary_value_id, unit_id,
+     *                                    vendor_id;
      *                                    null — событие без цели (label.generate, auth.*)
      * @param  int|null  $entityId
      * @param  int  $ownerId    владелец домена (для скоупа видимости)
@@ -64,6 +65,7 @@ class AuditLogService
                 'label_list_id', 'access_grant_id', 'target_user_id',
                 'category_id', 'property_id', 'property_group_id',
                 'dictionary_id', 'dictionary_value_id', 'unit_id',
+                'vendor_id',
             ];
 
             if (! in_array($entityColumn, $allowed, true)) {
@@ -160,6 +162,7 @@ class AuditLogService
             'dictionary'    => ['dictionary_id', 'user_id'],
             'dictionary_value' => ['dictionary_value_id', 'user_id'],
             'unit'          => ['unit_id', 'user_id'],
+            'vendor'  => ['vendor_id', 'user_id'],
         ];
 
         if (! isset($map[$table])) {

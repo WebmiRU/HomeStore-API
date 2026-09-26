@@ -43,6 +43,14 @@ class StoreItemRequest extends FormRequest
                 Rule::exists('category', 'id')->where('user_id', $userId),
             ],
 
+            // Поставщик свой, не чужой: предмет с чужим поставщиком
+            // показывался бы в чужом разделе каталога.
+            'vendor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('vendor', 'id')->where('user_id', $userId),
+            ],
+
             // Сами значения свойств проверяются не здесь, а в
             // ItemPropertyService: тип свойства и его справочник лежат в БД,
             // а правила FormRequest не умеют смотреть в соседние строки.

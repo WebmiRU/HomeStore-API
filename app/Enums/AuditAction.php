@@ -60,6 +60,10 @@ enum AuditAction: string
     case UnitUpdated = 'unit.updated';
     case UnitDeleted = 'unit.deleted';
 
+    case VendorCreated = 'vendor.created';
+    case VendorUpdated = 'vendor.updated';
+    case VendorDeleted = 'vendor.deleted';
+
     case OperationReplenish = 'operation.replenish';
     case OperationWriteoff = 'operation.writeoff';
 

@@ -165,7 +165,7 @@ class ItemController extends Controller
      */
     private function relations(): array
     {
-        return ['code', 'codes', 'store.parent', 'category', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
+        return ['code', 'codes', 'store.parent', 'category', 'vendor', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
     }
 
     private function canCreateItem(array $data): bool

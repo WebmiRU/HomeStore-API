@@ -16,6 +16,7 @@ class AuditLogController extends Controller
     private const ENTITY_TYPES = [
         'item', 'store', 'warehouse', 'label_preset', 'label_list', 'access_grant', 'user',
         'category', 'property', 'property_group', 'dictionary', 'dictionary_value', 'unit',
+        'vendor',
     ];
 
     /**
@@ -263,6 +264,7 @@ class AuditLogController extends Controller
             'dictionary'  => 'dictionary_id',
             'dictionary_value' => 'dictionary_value_id',
             'unit'        => 'unit_id',
+            'vendor' => 'vendor_id',
         ];
 
         abort_unless(isset($map[$type]), 422, "Неизвестный entity_type: {$type}");
@@ -287,6 +289,7 @@ class AuditLogController extends Controller
             . "WHEN dictionary_id IS NOT NULL THEN 'dictionary' "
             . "WHEN dictionary_value_id IS NOT NULL THEN 'dictionary_value' "
             . "WHEN unit_id IS NOT NULL THEN 'unit' "
+            . "WHEN vendor_id IS NOT NULL THEN 'vendor' "
             . "ELSE 'none' END)";
     }
 }

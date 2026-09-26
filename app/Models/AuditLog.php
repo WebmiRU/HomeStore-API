@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  *
  * Каждая запись ссылается ровно на одну сущность-цель (одна из
  * item_id/store_id/warehouse_id/label_preset_id/label_list_id/access_grant_id/
- * target_user_id) — это гарантирует CHECK-ограничение audit_log_single_target.
+ * target_user_id/... /vendor_id) — это гарантирует CHECK-ограничение
+ * audit_log_single_target.
  */
 class AuditLog extends Model
 {
@@ -29,6 +30,7 @@ class AuditLog extends Model
         'label_list_id',
         'access_grant_id',
         'target_user_id',
+        'vendor_id',
         'action',
         'payload',
         'client_ip',

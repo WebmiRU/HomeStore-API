@@ -51,10 +51,15 @@ class ItemResource extends JsonResource
                 'title_print' => $this->title_print,
                 'store_id'    => $this->store_id,
                 'category_id' => $this->category_id,
+                'vendor_id'   => $this->vendor_id,
                 'quantity'    => $this->quantity,
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
+            'vendor'   => $this->whenLoaded('vendor', fn() => $this->vendor === null ? null : [
+                'id'    => $this->vendor->id,
+                'title' => $this->vendor->title,
+            ]),
             'category' => $this->whenLoaded('category', fn() => $this->category === null ? null : [
                 'id'    => $this->category->id,
                 'title' => $this->category->title,

@@ -19,6 +19,7 @@ class Item extends Model
         'title_print',
         'store_id',
         'category_id',
+        'vendor_id',
         'quantity',
         'user_id',
     ];
@@ -74,6 +75,11 @@ class Item extends Model
     public function category()
     {
         return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function vendor()
+    {
+        return $this->belongsTo(Vendor::class, 'vendor_id');
     }
 
     /**

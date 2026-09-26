@@ -35,6 +35,14 @@ class UpdateItemRequest extends FormRequest
                 Rule::exists('category', 'id')->where('user_id', $userId),
             ],
 
+            // Поставщик свой, не чужой: предмет с чужим поставщиком
+            // показывался бы в чужом разделе каталога.
+            'vendor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('vendor', 'id')->where('user_id', $userId),
+            ],
+
             // Раздела properties в теле может не быть вовсе — тогда значения
             // не трогаются. Пустой массив — это явное «очистить», и отличать
             // одно от другого приходится в ItemController.

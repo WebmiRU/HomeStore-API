@@ -8,10 +8,10 @@ use App\Http\Requests\UpdateUserProfileRequest;
 use App\Http\Resources\UserProfileResource;
 use App\Models\Image;
 use App\Models\UserProfile;
+use App\Services\ImageCleanupService;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
-use Illuminate\Support\Facades\Storage;
 
 class UserProfileController extends Controller
 {
@@ -63,34 +63,10 @@ class UserProfileController extends Controller
         $model->update(['avatar_id' => $image->id]);
 
         if ($oldAvatarId !== null && $oldAvatarId !== $image->id) {
-            $this->deleteUnusedImage($oldAvatarId);
+            app(ImageCleanupService::class)->deleteIfUnused($oldAvatarId);
         }
 
         return new UserProfileResource($model->load('avatarImage'));
-    }
-
-    private function deleteUnusedImage(int $imageId): void
-    {
-        $image = Image::query()->find($imageId);
-
-        if ($image === null) {
-            return;
-        }
-
-        $inUse = $image->items()->exists()
-            || $image->stores()->exists()
-            || $image->labelPresets()->exists()
-            || UserProfile::query()->where('avatar_id', $imageId)->exists();
-
-        if ($inUse) {
-            return;
-        }
-
-        $path = $image->path;
-
-        $image->delete();
-
-        Storage::disk('s3')->delete($path);
     }
 
     public function delete(UserProfile $model): JsonResponse
