@@ -41,6 +41,18 @@ class ThumbnailSeeder extends Seeder
             ]
         );
 
+        // Логотип производителя в карточке: 150x150 с вписыванием, чтобы
+        // широкий логотип не обрезался по краям.
+        Thumbnail::updateOrCreate(
+            ['key' => '150x150_contain'],
+            [
+                'format' => ImageFormat::Avif,
+                'width' => 150,
+                'height' => 150,
+                'crop' => ImageCrop::Contain,
+            ]
+        );
+
         Thumbnail::updateOrCreate(
             ['key' => '200x200_cover'],
             [
