@@ -50,7 +50,7 @@
     @foreach ($items as $item)
         <div class="item-item">
             <div class="item-title">{{ $item->title }}</div>
-            <div class="item-code">{{ strtoupper(str_replace('-', '', (string) $item->code->code)) }}</div>
+            <div class="item-code">{{ strtoupper(str_replace('-', '', (string) $item->code?->code)) }}</div>
             <div class="item-qr">{!! $item->qrSvg !!}</div>
         </div>
         @unless ($loop->last)

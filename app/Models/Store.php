@@ -43,9 +43,16 @@ class Store extends Model
         return $this->hasMany(Store::class, 'parent_id');
     }
 
+    /**
+     * Код хранилища. Он один, но порядок задан явно: hasOne без сортировки
+     * берёт произвольную строку, и при появлении лишней строки в карточке
+     * молча менялся бы тот код, который человек видит.
+     */
     public function code()
     {
-        return $this->hasOne(Code::class);
+        return $this->hasOne(Code::class)
+            ->orderBy('code.sort')
+            ->orderBy('code.id');
     }
 
     public function images()

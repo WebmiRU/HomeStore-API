@@ -24,6 +24,23 @@ class ItemResource extends JsonResource
             'can_edit'=> in_array('edit', $rights, true),
             'can_delete' => in_array('delete', $rights, true),
             'code'    => $this->whenLoaded('code', fn() => $this->code?->code),
+
+            // Коды, по которым тот же предмет есть у других: сообщаем, но
+            // не мешаем жить. Дубли законны (один штрихкод на несколько
+            // экземпляров), и запрещать их на сохранении нельзя — предупредить
+            // можно. Значение ставит контроллер после сохранения кодов.
+            'conflicts' => $this->whenLoaded(
+                'conflicts',
+                fn() => $this->conflicts
+            ),
+
+            // Все коды предмета, от главного к прочим. code выше — главный,
+            // он же первый в этом списке: карточка и печать этикеток по
+            // умолчанию берут именно его, а остальные живут здесь.
+            'codes'   => $this->whenLoaded(
+                'codes',
+                fn() => $this->codes->pluck('code')->values()
+            ),
             'payload' => [
                 'id'          => $this->id,
                 'user_id'     => $this->user_id,

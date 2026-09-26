@@ -125,6 +125,7 @@ Route::prefix('code')->controller(CodeController::class)->group(function (): voi
     Route::get('/', 'index');
     Route::get('search', 'search');
     Route::get('orphans', 'orphans');
+    Route::get('conflicts', 'conflicts');
     Route::get('orphans/preview', 'orphansPreview');
     Route::delete('orphans', 'destroyOrphans');
 });

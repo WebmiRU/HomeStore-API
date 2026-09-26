@@ -17,6 +17,7 @@ class LabelListResource extends JsonResource
                 : $this->when(false, null),
             'title'           => $this->title,
             'label_preset_id' => $this->label_preset_id,
+            'print_all_codes' => (bool) $this->print_all_codes,
             'created_at'      => $this->created_at,
             'updated_at'      => $this->updated_at,
             'label_preset'    => new LabelPresetResource($this->whenLoaded('labelPreset')),

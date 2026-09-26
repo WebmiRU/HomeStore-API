@@ -14,10 +14,18 @@ class Code extends Model
 
     protected $fillable = [
         'code',
+        'sort',
         'store_id',
         'item_id',
         'user_id',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'sort' => 'integer',
+        ];
+    }
 
     public function user()
     {
@@ -98,5 +106,47 @@ class Code extends Model
         }
 
         $builder->where('code.created_at', '<', now()->subDays($days));
+    }
+
+    /**
+     * Коды, по которым предмет пересекается с другими, — коллизии.
+     *
+     * Группировка по значению кода, внутри — все предметы, доступные
+     * пользователю, кроме самого себя. Возвращается вид, готовый и для
+     * уведомления при сохранении, и для страницы коллизий.
+     *
+     * @return array<string, array<int, array{id: int, title: string}>>
+     */
+    public static function conflictsFor(Item $item): array
+    {
+        $codes = $item->codes()->pluck('code')->all();
+
+        if ($codes === []) {
+            return [];
+        }
+
+        $rows = static::query()
+            ->with('item')
+            ->whereIn('code', $codes)
+            ->whereNotNull('code.item_id')
+            ->where('code.item_id', '!=', $item->id)
+            ->orderBy('code')
+            ->orderBy('code.id')
+            ->get();
+
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            if ($row->item === null) {
+                continue;
+            }
+
+            $grouped[$row->code][] = [
+                'id' => (int) $row->item_id,
+                'title' => $row->item->title,
+            ];
+        }
+
+        return $grouped;
     }
 }

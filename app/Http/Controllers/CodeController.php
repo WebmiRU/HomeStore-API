@@ -12,6 +12,8 @@ use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Ramsey\Uuid\Uuid;
 
 class CodeController extends Controller
@@ -67,13 +69,16 @@ class CodeController extends Controller
         }
 
         if ($items->isNotEmpty()) {
-            // Коллизия: одинаковый код у нескольких доступных предметов —
-            // отдаём все варианты (свои сначала, новые выше).
+            // Коллизия: одинаковый код у нескольких доступных предметов.
+            // Порядок задаёт orderCollision, а не сортировка выборки: список
+            // предметов собирается в PHP, и «свои сверху» по нему уже не
+            // выразить запросом.
             return response()->json([
                 'code'      => trim((string) $request->query('q')),
                 'ambiguous' => true,
-                'matches'   => CodeResource::collection($items->values())
-                    ->resolve($request),
+                'matches'   => CodeResource::collection(
+                    $this->orderCollision($items, (int) CurrentUser::id())
+                )->resolve($request),
             ]);
         }
 
@@ -99,6 +104,178 @@ class CodeController extends Controller
         }
 
         return response()->json(['error' => 'Not found'], 404);
+    }
+
+    /**
+     * Список коллизий: коды, по которым предметов больше одного.
+     *
+     * Страница нужна, чтобы найти и починить дубли, не сканируя каждый код
+     * вручную: по одному предмету понять, что он делит код с другим, нельзя.
+     *
+     * Отдаём постранично по значениям кода, а не по строкам code: иначе один
+     * код с пятью предметами занял бы пять страниц, и в списке он бы
+     * повторялся.
+     *
+     * GET /api/code/conflicts
+     */
+    public function conflicts(Request $request): JsonResponse
+    {
+        $userId = (int) CurrentUser::id();
+        $perPage = min(max($request->integer('per_page', 25), 1), 100);
+        $page = max($request->integer('page', 1), 1);
+
+        $conflicting = Code::query()
+            ->accessibleTo($userId)
+            ->whereNotNull('code.item_id')
+            ->select('code')
+            ->groupBy('code')
+            // Два одинаковых кода у одного предмета невозможны: повтор
+            // внутри одного списка отсекается при сохранении. Значит «больше
+            // одного предмета» — это ровно «разные предметы».
+            ->havingRaw('count(distinct code.item_id) > 1')
+            ->orderBy('code');
+
+        $total = (clone $conflicting)->count('code');
+
+        $codes = (clone $conflicting)
+            ->forPage($page, $perPage)
+            ->pluck('code')
+            ->all();
+
+        $rows = Code::query()
+            ->with('item')
+            ->whereIn('code', $codes)
+            ->whereNotNull('code.item_id')
+            ->orderBy('code')
+            ->orderBy('code.id')
+            ->get();
+
+        $itemsByCode = [];
+
+        foreach ($rows as $row) {
+            if ($row->item === null) {
+                continue;
+            }
+
+            $itemsByCode[$row->code][] = [
+                'id'    => (int) $row->item_id,
+                'title' => $row->item->title,
+            ];
+        }
+
+        // Собираем по $codes, а не по $itemsByCode: так в ответе не появятся
+        // коды, у которых предметы отфильтровались правами, и порядок строк
+        // совпадёт с пагинацией.
+        $data = [];
+
+        foreach ($codes as $code) {
+            $data[] = [
+                'code'  => $code,
+                'items' => $itemsByCode[$code] ?? [],
+            ];
+        }
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $page,
+                'per_page'     => $perPage,
+                'total'        => $total,
+                'last_page'    => max((int) ceil($total / $perPage), 1),
+            ],
+        ]);
+    }
+
+    /**
+     * Порядок предметов при коллизии одинакового кода.
+     *
+     * Главный ориентир — свои предметы: человек почти всегда списывает или
+     * пополняет то, что заведено у него, а чужое в том же наборе может
+     * оказаться случайно. Внутри каждой группы сначала те, кого пополняли
+     * позже всех: у того предмета, который последним брали в руки, на полке
+     * скорее всего и лежит нужное количество. И только если пополнений не
+     * было ни у кого, решает свежесть — новые сверху.
+     *
+     * Порядок вычисляется здесь, а не в запросе, сознательно: подзапрос за
+     * последним пополнением на каждый скан стоил бы лишнего обращения к БД,
+     * а коллизия — редкий случай. Сейчас сортировка выборки работает, когда
+     * предмет всего один, и не важна.
+     *
+     * Владелец берётся у предмета, а не у строки кода: user_id у кода
+     * проставляется по текущему пользователю в момент создания, и у кодов,
+     * заведённых мимо API (сидеры, консоль), он пуст — а предмет хозяин
+     * всегда.
+     *
+     * @param  \Illuminate\Support\Collection<int, Code>  $items  предметы по id
+     * @return \Illuminate\Support\Collection<int, Code>
+     */
+    private function orderCollision(Collection $items, int $userId): Collection
+    {
+        $replenishedAt = $this->lastReplenishedAt($items->keys()->all());
+
+        // Сортировка на PHP 8 устойчива, поэтому при полном равенстве
+        // сохраняется порядок выборки, а не случайный.
+        return $items->sort(function (Code $a, Code $b) use ($replenishedAt, $userId): int {
+            $aOwn = (int) $a->item?->user_id === $userId;
+            $bOwn = (int) $b->item?->user_id === $userId;
+
+            if ($aOwn !== $bOwn) {
+                return $aOwn ? -1 : 1;
+            }
+
+            $aAt = $replenishedAt[$a->item_id] ?? null;
+            $bAt = $replenishedAt[$b->item_id] ?? null;
+
+            if ($aAt !== $bAt) {
+                // Без пополнений — в конец своей группы, а не в начало:
+                // иначе предмет, которым ни разу не пользовались, оказался
+                // бы первым просто потому, что пополнений не было вовсе.
+                if ($aAt === null) {
+                    return 1;
+                }
+                if ($bAt === null) {
+                    return -1;
+                }
+
+                return $bAt <=> $aAt;
+            }
+
+            return $b->id <=> $a->id;
+        })->values();
+    }
+
+    /**
+     * Время последнего пополнения по каждому предмету: item_id => timestamp.
+     *
+     * Откатанные операции не считаются: возвращённое пополнение не было
+     * пополнением, и предмет, который только что откатили, не должен
+     * стоять первым как «последний, кого брали».
+     *
+     * @param  array<int, int>  $itemIds
+     * @return array<int, int>
+     */
+    private function lastReplenishedAt(array $itemIds): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('stock_operation_item')
+            ->join('stock_operation', 'stock_operation.id', '=', 'stock_operation_item.operation_id')
+            ->whereIn('stock_operation_item.item_id', $itemIds)
+            ->where('stock_operation.direction', 'replenish')
+            ->whereNull('stock_operation.reversed_at')
+            ->groupBy('stock_operation_item.item_id')
+            ->select('stock_operation_item.item_id', DB::raw('max(stock_operation.created_at) as last_replenished'))
+            ->get();
+
+        $result = [];
+
+        foreach ($rows as $row) {
+            $result[(int) $row->item_id] = (int) strtotime((string) $row->last_replenished);
+        }
+
+        return $result;
     }
 
     /**

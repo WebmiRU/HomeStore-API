@@ -16,6 +16,7 @@ class StoreLabelListRequest extends FormRequest
         return [
             'title'           => ['required', 'string', 'max:500', 'unique:label_list,title'],
             'label_preset_id' => ['required', 'integer', 'exists:label_preset,id'],
+            'print_all_codes' => ['sometimes', 'boolean'],
         ];
     }
 }

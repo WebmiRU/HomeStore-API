@@ -16,7 +16,12 @@ class LabelList extends Model
     protected $fillable = [
         'title',
         'label_preset_id',
+        'print_all_codes',
         'user_id',
+    ];
+
+    protected $casts = [
+        'print_all_codes' => 'boolean',
     ];
 
     public function user()

@@ -166,14 +166,22 @@ class LabelListController extends Controller
      */
     public function generate(LabelList $labelList): Response|JsonResponse
     {
-        $labelList->load(['labelPreset.font', 'items.code', 'stores.code', 'codes']);
+        $labelList->load(['labelPreset.font', 'items.codes', 'stores.code', 'codes']);
 
         $labels = [];
 
         foreach ($labelList->items as $item) {
-            if ($item->code) {
+            // По умолчанию на этикетку идёт главный код — тот же, что в
+            // карточке. С крыжиком «все коды» предмет даёт столько ячеек,
+            // сколько у него наклеек: набор безымянных этикеток для новых
+            // вещей, и печатать их нужно по одной.
+            $codes = $labelList->print_all_codes
+                ? $item->codes
+                : $item->codes->take(1);
+
+            foreach ($codes as $code) {
                 $labels[] = [
-                    'code' => $item->code->code,
+                    'code'  => $code->code,
                     'title' => $item->title_print ?: $item->title,
                 ];
             }

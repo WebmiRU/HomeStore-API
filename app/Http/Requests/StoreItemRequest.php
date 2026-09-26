@@ -21,8 +21,18 @@ class StoreItemRequest extends FormRequest
             'title'       => ['required', 'string', 'max:500'],
             'title_print' => ['nullable', 'string', 'max:500'],
             'store_id'    => ['nullable', 'integer', 'exists:store,id'],
-            'code'        => ['nullable', 'string', 'min:8', 'max:256'],
             'quantity'    => ['nullable', 'integer'],
+
+            // Кодов у предмета может быть несколько: наклейка на вещь одна,
+            // а код — наклейка, и на вещи их бывает больше одной. Правило на
+            // сам код (код хранилища нельзя занять предмету) проверяется в
+            // ItemController: там видно соседние строки code.
+            'codes'       => ['nullable', 'array', 'max:20'],
+            'codes.*'     => ['nullable', 'string', 'min:8', 'max:256'],
+
+            // Прежнее имя одного кода. Оставлено для клиентов, которые ещё
+            // шлют code вместо codes; при наличии codes поле игнорируется.
+            'code'        => ['nullable', 'string', 'min:8', 'max:256'],
 
             // Категория своя, не чужая: предмет, положенный в чужое дерево,
             // показывался бы в чужом разделе каталога, а его набор свойств

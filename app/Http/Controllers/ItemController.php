@@ -22,6 +22,16 @@ use Illuminate\Validation\ValidationException;
 
 class ItemController extends Controller
 {
+    /**
+     * Строк на страницу списка предметов.
+     *
+     * Раньше бралось умолчание Laravel — 15. Строки стали выше: в списке есть
+     * колонка с картинкой, и пятнадцать таких на экран не помещаются, а
+     * половина страницы уезжает за край. Десять — это сколько влезает вместе
+     * с заголовком и фильтром, без прокрутки.
+     */
+    private const PER_PAGE = 10;
+
     public function __construct(
         private readonly ItemPropertyService $propertyService,
     ) {}
@@ -47,7 +57,9 @@ class ItemController extends Controller
             });
         }
 
-        return ItemResource::collection($query->orderByDesc('id')->paginate());
+        return ItemResource::collection(
+            $query->orderByDesc('id')->paginate($request->integer('per_page', self::PER_PAGE))
+        );
     }
 
     public function get(Item $model): ItemResource
@@ -62,28 +74,13 @@ class ItemController extends Controller
         abort_unless($this->canCreateItem($data), 403, 'Нет права на создание в этом складе');
 
         $item = DB::transaction(function () use ($data) {
-            $code = isset($data['code']) ? trim((string) $data['code']) : '';
+            $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
-            unset($data['code'], $data['properties']);
+            unset($data['code'], $data['codes'], $data['properties']);
 
             $item = Item::create($data);
 
-            if ($code === '') {
-                // Код не передан — генерируем UUID по умолчанию
-                Code::create([
-                    'code'    => (string) Str::uuid7(),
-                    'item_id' => $item->id,
-                ]);
-            } else {
-                // Общий с put(): именно этот путь и есть «отсканировал
-                // безымянную наклейку и завёл по ней предмет», а он ходит в
-                // /items/create, то есть в POST, а не в PUT. Своя копия
-                // логики здесь означала, что напечатанная строка кода
-                // оставалась непривязанной, а рядом появлялась вторая с тем
-                // же значением: та же этикетка попадала в чистку осиротевших,
-                // а скан становился неоднозначным сразу после создания.
-                $this->bindCodeToItem($item, $code);
-            }
+            $this->syncCodes($item, $codes ?? []);
 
             if ($properties !== null) {
                 $this->propertyService->sync($item, $properties);
@@ -92,7 +89,7 @@ class ItemController extends Controller
             return $item;
         });
 
-        return (new ItemResource($item->load($this->relations())))
+        return (new ItemResource($this->loadForAnswer($item)))
             ->response()
             ->setStatusCode(201);
     }
@@ -103,9 +100,9 @@ class ItemController extends Controller
 
         DB::transaction(function () use ($request, $model) {
             $data = $request->validated();
-            $code = array_key_exists('code', $data) ? trim((string) ($data['code'] ?? '')) : null;
+            $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
-            unset($data['code'], $data['properties']);
+            unset($data['code'], $data['codes'], $data['properties']);
 
             $model->update($data);
 
@@ -113,21 +110,30 @@ class ItemController extends Controller
                 $this->propertyService->sync($model, $properties);
             }
 
-            if ($code === null) {
-                // Поле «code» не передано — связку не трогаем
+            if ($codes === null) {
+                // Раздела codes в теле нет — коды не трогаем
                 return;
             }
 
-            if ($code === '') {
-                // Отвязываем код от товара
-                Code::where('item_id', $model->id)->delete();
-                return;
-            }
-
-            $this->bindCodeToItem($model, $code);
+            $this->syncCodes($model, $codes);
         });
 
-        return new ItemResource($model->load($this->relations()));
+        return new ItemResource($this->loadForAnswer($model));
+    }
+
+    /**
+     * Модель для ответа: обычные связи плюс список коллизий по кодам.
+     *
+     * Коллизии считаются только в ответе на сохранение, а не в relations():
+     * карточка предмета и список предметов коллизий не показывают, и
+     * лишний запрос на каждом чтении списка там просто не нужен.
+     */
+    private function loadForAnswer(Item $item): Item
+    {
+        $item->load($this->relations());
+        $item->setRelation('conflicts', Code::conflictsFor($item));
+
+        return $item;
     }
 
     /**
@@ -159,7 +165,7 @@ class ItemController extends Controller
      */
     private function relations(): array
     {
-        return ['code', 'store.parent', 'category', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
+        return ['code', 'codes', 'store.parent', 'category', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
     }
 
     private function canCreateItem(array $data): bool
@@ -181,37 +187,148 @@ class ItemController extends Controller
         return $store->warehouse !== null && app(AccessService::class)->canCreate($store->warehouse);
     }
 
-    private function bindCodeToItem(Item $item, string $code): void
+    /**
+     * Коды из тела запроса — список строк без пустых и повторов.
+     *
+     * null — это «не трогать», а пустой массив — «очистить». Различать
+     * приходится потому, что PUT шлёт только изменённые поля, и пустой
+     * список в теле без ключа codes стёр бы коды при любом частичном
+     * обновлении.
+     *
+     * Поле code — прежнее имя одного кода, оставлено для клиентов, которые
+     * ещё шлют его вместо codes.
+     *
+     * @param  array<string, mixed>  $data  результат $request->validated()
+     * @return list<string>|null
+     */
+    private function normalizeCodes(array $data): ?array
     {
-        // Код хранилища не может быть переиспользован предметом: скан такого
-        // кода должен приводить к хранилищу, а не к предмету.
-        if (Code::where('code', $code)->whereNotNull('store_id')->exists()) {
-            throw ValidationException::withMessages([
-                'code' => ['Код уже привязан к хранилищу'],
-            ]);
+        $raw = match (true) {
+            array_key_exists('codes', $data) => (array) $data['codes'],
+            array_key_exists('code', $data) => [$data['code']],
+            default => null,
+        };
+
+        if ($raw === null) {
+            return null;
         }
 
-        // Свободный код (например, напечатанный в наборе безымянных этикеток)
-        // переиспользуем, а не плодим вторую строку с тем же значением:
-        // уникальность code в БД не гарантирована, дубль разошёлся бы по
-        // поиску и по набору. link на label_list сохраняется — код остаётся
-        // частью своего набора.
+        $codes = [];
+
+        foreach ($raw as $value) {
+            $code = trim((string) ($value ?? ''));
+
+            // Повтор в одном списке — это один и тот же код дважды: строки
+            // в БД иначе завелись бы одинаковыми, а предмет с двумя
+            // одинаковыми кодами сканировался бы как неоднозначный сам у себя.
+            if ($code === '' || in_array($code, $codes, true)) {
+                continue;
+            }
+
+            $codes[] = $code;
+        }
+
+        return $codes;
+    }
+
+    /**
+     * Приводит набор кодов предмета к заданному списку: недостающие
+     * привязывает, лишние удаляет, всем проставляет sort по позиции.
+     *
+     * Пустой список не оставляет предмет вовсе без кода: от кода зависят
+     * печать этикетки, карточка и разрешение скана, поэтому генерируется
+     * новый UUID — ровно как при создании предмета без кода.
+     *
+     * @param  list<string>  $codes
+     */
+    private function syncCodes(Item $item, array $codes): void
+    {
+        if ($codes === []) {
+            $codes = [(string) Str::uuid7()];
+        }
+
+        foreach (array_values($codes) as $index => $code) {
+            // Код хранилища не может быть переиспользован предметом: скан
+            // такого кода должен приводить к хранилищу, а не к предмету.
+            if (Code::where('code', $code)->whereNotNull('store_id')->exists()) {
+                throw ValidationException::withMessages([
+                    "codes.{$index}" => ['Код уже привязан к хранилищу'],
+                ]);
+            }
+        }
+
+        $existing = $item->codes()->get();
+        $used = [];
+
+        foreach (array_values($codes) as $position => $code) {
+            $row = $this->matchExisting($existing, $code, $used);
+
+            if ($row === null) {
+                $this->attachCode($item, $code, $position);
+                continue;
+            }
+
+            $used[] = $row->id;
+
+            // sort переписывается всегда, даже когда код остался на месте:
+            // человек мог переставить коды в списке, и без этого верхний
+            // на форме разошёлся бы с главным на сервере.
+            if ($row->sort !== $position) {
+                $row->update(['sort' => $position]);
+            }
+        }
+
+        // Кода, который в списке больше нет, у предмета не остаётся: строка
+        // удаляется, а не просто отвязывается. Иначе на печатной этикетке
+        // остался бы код, который предмету не принадлежит, и он же вернулся
+        // бы в чистку осиротевших — как код со снятого предмета.
+        $existing->reject(fn (Code $row) => in_array($row->id, $used, true))->each->delete();
+    }
+
+    /**
+     * Ищет среди кодов предмета строку с таким значением, ещё не занятую
+     * другим пунктом списка.
+     *
+     * Повтор значения в списке возможен: уникальность code в БД не
+     * гарантирована, и на разных предметах один штрихкод живёт в разных
+     * строках. Поэтому «занята» отслеживается отдельно — иначе второй
+     * такой же код в списке сочёлся бы за уже обработанный и потерял бы
+     * строку, а с ней и своё место в порядке.
+     *
+     * @param  \Illuminate\Support\Collection<int, Code>  $existing
+     * @param  list<int>  $used
+     */
+    private function matchExisting($existing, string $code, array $used): ?Code
+    {
+        return $existing->first(
+            fn (Code $row) => $row->code === $code && ! in_array($row->id, $used, true)
+        );
+    }
+
+    /**
+     * Привязывает один код к предмету и ставит его на указанное место.
+     *
+     * Свободный код — например, напечатанный в наборе безымянных этикеток —
+     * переиспользуем, а не плодим вторую строку с тем же значением:
+     * уникальность code в БД не гарантирована, дубль разошёлся бы по
+     * поиску и по набору. Связь с label_list сохраняется — код остаётся
+     * частью своего набора.
+     */
+    private function attachCode(Item $item, string $code, int $sort): void
+    {
         $free = Code::where('code', $code)
             ->whereNull('item_id')
             ->whereNull('store_id')
             ->orderByDesc('id')
             ->first();
 
-        // Дубли кодов разрешены — просто заменяем связку этого предмета.
-        Code::where('item_id', $item->id)->delete();
-
         if ($free !== null) {
-            $free->update(['item_id' => $item->id]);
+            $free->update(['item_id' => $item->id, 'sort' => $sort]);
 
             return;
         }
 
-        Code::create(['code' => $code, 'item_id' => $item->id]);
+        Code::create(['code' => $code, 'item_id' => $item->id, 'sort' => $sort]);
     }
 
     public function delete(Item $model): JsonResponse
@@ -228,7 +345,7 @@ class ItemController extends Controller
         $items = Item::with('code')->orderByDesc('id')->get();
 
         $items->transform(function (Item $item) {
-            $uuid = strtoupper(str_replace('-', '', (string) $item->code->code));
+            $uuid = strtoupper(str_replace('-', '', (string) $item->code?->code));
 
             $barcode = new Barcode();
             $bobj = $barcode->getBarcodeObj('DATAMATRIX', $uuid, 200, 200);

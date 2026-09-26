@@ -21,8 +21,14 @@ class UpdateItemRequest extends FormRequest
             'title'       => ['sometimes', 'string', 'max:500'],
             'title_print' => ['nullable', 'string', 'max:500'],
             'store_id'    => ['nullable', 'integer', 'exists:store,id'],
-            'code'        => ['nullable', 'string', 'min:8', 'max:256'],
             'quantity'    => ['sometimes', 'nullable', 'integer'],
+
+            // Кодов у предмета может быть несколько, см. StoreItemRequest.
+            'codes'       => ['sometimes', 'nullable', 'array', 'max:20'],
+            'codes.*'     => ['nullable', 'string', 'min:8', 'max:256'],
+
+            // Прежнее имя одного кода, оставлено для совместимости.
+            'code'        => ['nullable', 'string', 'min:8', 'max:256'],
             'category_id' => [
                 'nullable',
                 'integer',
