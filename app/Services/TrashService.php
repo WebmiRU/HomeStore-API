@@ -16,6 +16,7 @@ use App\Models\UserProfile;
 use App\Models\Vendor;
 use App\Models\Warehouse;
 use App\Support\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 
@@ -82,20 +83,44 @@ class TrashService
     }
 
     /**
-     * Удалённые записи раздела, по 50 на страницу.
+     * Ограничение запроса корзины по владельцу.
      *
      * Владелец — всегда текущий пользователь, а не «доступные по складу»:
      * скоуп доступности у предметов и хранилищ шире владения, и без этой
      * проверки в корзине оказались бы чужие записи, которыми нельзя
      * распорядиться.
+     *
+     * Две секции владельца у рекорда не имеют, и это не пропуск, а устройство
+     * таблиц: у значения справочника своего user_id нет — оно принадлежит
+     * справочку-родителю, а у пользователя владельцем является он сам.
+     * Раньше здесь был единый where по user_id, и обе секции падали с
+     * «column does not exist».
+     */
+    private function ownedBy(Builder $query): Builder
+    {
+        $model = $query->getModel();
+        $userId = CurrentUser::id();
+
+        if ($model instanceof DictionaryValue) {
+            return $query->whereIn('dictionary_id', Dictionary::query()->select('id')->where('user_id', $userId));
+        }
+
+        if ($model instanceof UserProfile) {
+            return $query->where($model->getKeyName(), $userId);
+        }
+
+        return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Удалённые записи раздела, по 50 на страницу.
      */
     public function listing(string $section, int $page)
     {
         /** @var Model $model */
         $model = $this->modelFor($section);
 
-        return $model::onlyTrashed()
-            ->where('user_id', CurrentUser::id())
+        return $this->ownedBy($model::onlyTrashed())
             ->orderByDesc('deleted_at')
             ->orderByDesc('id')
             ->paginate(50, ['*'], 'page', $page);
@@ -116,9 +141,7 @@ class TrashService
         $failed = [];
 
         foreach ($ids as $id) {
-            $record = $model::onlyTrashed()
-                ->where('user_id', CurrentUser::id())
-                ->find($id);
+            $record = $this->ownedBy($model::onlyTrashed())->find($id);
 
             if ($record === null) {
                 continue;
@@ -159,9 +182,7 @@ class TrashService
         $titles = [];
 
         foreach ($ids as $id) {
-            $record = $model::onlyTrashed()
-                ->where('user_id', CurrentUser::id())
-                ->find($id);
+            $record = $this->ownedBy($model::onlyTrashed())->find($id);
 
             if ($record === null) {
                 continue;
