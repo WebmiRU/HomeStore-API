@@ -176,6 +176,9 @@ Route::prefix('item')->controller(StockOperationController::class)->group(functi
 
 Route::prefix('store')->controller(StoreController::class)->group(function (): void {
     Route::get('/', 'index');
+    // Вкладка «Содержимое»: дерево вложенных хранилищ с предметами.
+    Route::get('{model}/contents', 'contents');
+    Route::get('{model}/contents/items', 'contentsItems');
     Route::get('all', 'all');
     Route::get('{model}', 'get');
     Route::post('/', 'post');
@@ -241,6 +244,8 @@ Route::prefix('user')->controller(UserProfileController::class)->group(function 
 
 Route::prefix('warehouse')->controller(WarehouseController::class)->group(function (): void {
     Route::get('/', 'index');
+    // Вкладка «Содержимое»: дерево хранилищ склада с предметами.
+    Route::get('{model}/contents', 'contents');
     Route::get('all', 'all');
     Route::get('{model}', 'get');
     Route::post('/', 'post');

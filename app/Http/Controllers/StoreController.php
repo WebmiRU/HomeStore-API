@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\Warehouse;
 use Com\Tecnick\Barcode\Barcode;
 use App\Services\AccessService;
+use App\Services\StorageContentsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,32 @@ class StoreController extends Controller
     public function get(Store $model): StoreResource
     {
         return new StoreResource($model->load(['code', 'parent', 'warehouse', 'images', 'user']));
+    }
+
+    /**
+     * Что лежит в хранилище: дерево вложенных хранилищ с предметами.
+     *
+     * Права — те же, что и у карточки: дерево показывает размещение вещей, и
+     * доступ «на просмотр» без права правки тут ни при чём.
+     */
+    public function contents(Store $model, StorageContentsService $contents): JsonResponse
+    {
+        abort_unless(app(AccessService::class)->canView($model), 403, 'Недостаточно прав для просмотра хранилища');
+
+        return response()->json(['data' => $contents->treeForStore($model)]);
+    }
+
+    /**
+     * Все предметы хранилища — для кнопки «показать все» в дереве.
+     *
+     * Дерево отдаёт по двадцать предметов на узел, полный список нужен
+     * только когда человек его раскрыл, поэтому он и грузится отдельно.
+     */
+    public function contentsItems(Store $model, StorageContentsService $contents): JsonResponse
+    {
+        abort_unless(app(AccessService::class)->canView($model), 403, 'Недостаточно прав для просмотра хранилища');
+
+        return response()->json(['data' => $contents->allItemsOf($model)]);
     }
 
     public function post(StoreStoreRequest $request): JsonResponse
