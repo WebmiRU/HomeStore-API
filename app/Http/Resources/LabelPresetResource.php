@@ -18,6 +18,10 @@ class LabelPresetResource extends JsonResource
                 ? new UserBriefResource($this->user)
                 : $this->when(false, null),
             'title'               => $this->title,
+            // Шаблон удаляется мягко, и списки этикеток его переживают:
+            // в графе «Шаблон» у них будет видно название с пометкой, пока
+            // шаблон можно восстановить или назначить другой.
+            'deleted'             => $this->trashed(),
             'page_width'          => $this->page_width,
             'page_height'         => $this->page_height,
             'page_margin_top'     => $this->page_margin_top,

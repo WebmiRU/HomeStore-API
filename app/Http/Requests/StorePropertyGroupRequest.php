@@ -20,7 +20,8 @@ class StorePropertyGroupRequest extends FormRequest
                 'required',
                 'string',
                 'max:500',
-                Rule::unique('property_group', 'title')->where('user_id', CurrentUser::id()),
+                Rule::unique('property_group', 'title')->where('user_id', CurrentUser::id())
+                ->whereNull('deleted_at'),
             ],
         ];
     }

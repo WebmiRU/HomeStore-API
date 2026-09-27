@@ -5,11 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreLabelPresetRequest;
 use App\Http\Requests\UpdateLabelPresetRequest;
 use App\Http\Resources\LabelPresetResource;
-use App\Models\LabelList;
 use App\Models\LabelPreset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
-use Illuminate\Support\Facades\DB;
 
 class LabelPresetController extends Controller
 {
@@ -49,15 +47,14 @@ class LabelPresetController extends Controller
     {
         abort_if($model->is_system, 403, 'Системный шаблон нельзя удалить');
 
-        // Удаляем дочерние списки через Eloquent, чтобы обзерверы записали
-        // label_list.deleted в журнал (каскад на уровне БД их бы пропустил).
-        DB::transaction(function () use ($model): void {
-            foreach ($model->labelLists as $labelList) {
-                $labelList->delete();
-            }
-
-            $model->delete();
-        });
+        // Списки этикеток шаблон переживают: удаление мягкое, и у них
+        // пропадает только ссылка на шаблон (label_list.label_preset_id
+        // объявлена nullOnDelete). Раньше здесь был цикл удаления списков,
+        // и стирать его нельзя было бездумно — этикетки в обороте, человек
+        // назначит им другой шаблон.
+        //
+        // Потомки в дереве (label_list) удаляются только жёстко, из корзины.
+        $model->delete();
 
         return response()->json(null, 204);
     }

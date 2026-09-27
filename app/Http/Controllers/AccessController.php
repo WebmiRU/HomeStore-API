@@ -20,9 +20,29 @@ class AccessController extends Controller
         return AccessGrantResource::collection(
             AccessGrant::with(['warehouse', 'user'])
                 ->where('owner_id', CurrentUser::id())
+                // Выдачи на удалённый склад прячем, но не удаляем: склад можно
+                // восстановить, и тогда права вернутся сами. Строка с пустым
+                // складом в списке выглядела бы как ошибка.
+                ->where(function ($query) {
+                    $query->where('entity_type', '!=', 'warehouse')
+                        ->orWhereNotIn('entity_id', $this->deletedWarehouseIds());
+                })
                 ->orderByDesc('id')
                 ->get()
         );
+    }
+
+    /**
+     * Идентификаторы складов, удалённых мягко.
+     *
+     * Отдельный список нужен, потому что связь выдачи идёт по голым
+     * entity_type/entity_id, а не через Eloquent: скоуп SoftDeletes на ней не
+     * действует, и без фильтра удалённый склад остался бы видимым в списке
+     * выдач — с пустым названием.
+     */
+    private function deletedWarehouseIds(): array
+    {
+        return Warehouse::onlyTrashed()->pluck('id')->all();
     }
 
     public function forWarehouse(Warehouse $model): ResourceCollection

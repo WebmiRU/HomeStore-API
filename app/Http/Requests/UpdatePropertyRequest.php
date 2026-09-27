@@ -26,7 +26,8 @@ class UpdatePropertyRequest extends FormRequest
                 'max:500',
                 Rule::unique('property', 'title')
                     ->where('user_id', $userId)
-                    ->ignore($model),
+                    ->ignore($model)
+                    ->whereNull('deleted_at'),
             ],
             // Тип можно поменять только когда у свойства ещё нет значений:
             // иначе значения, заполненные как текст, остались бы в колонке

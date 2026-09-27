@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Enums\PropertyType;
 use App\Models\Concerns\OwnedByUser;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Property extends Model
 {
+    use SoftDeletes;
     use OwnedByUser;
 
     protected $table = 'property';
@@ -40,17 +42,17 @@ class Property extends Model
 
     public function group()
     {
-        return $this->belongsTo(PropertyGroup::class, 'group_id');
+        return $this->belongsTo(PropertyGroup::class, 'group_id')->withTrashed();
     }
 
     public function unit()
     {
-        return $this->belongsTo(Unit::class, 'unit_id');
+        return $this->belongsTo(Unit::class, 'unit_id')->withTrashed();
     }
 
     public function dictionary()
     {
-        return $this->belongsTo(Dictionary::class, 'dictionary_id');
+        return $this->belongsTo(Dictionary::class, 'dictionary_id')->withTrashed();
     }
 
     public function values()

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateLabelPresetRequest extends FormRequest
 {
@@ -14,7 +15,9 @@ class UpdateLabelPresetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'               => ['sometimes', 'string', 'max:500', 'unique:label_preset,title'],
+            'title'               => ['sometimes', 'string', 'max:500', Rule::unique('label_preset', 'title')
+                    ->ignore($this->route('model'))
+                    ->whereNull('deleted_at')],
             'page_width'          => ['sometimes', 'numeric', 'min:1'],
             'page_height'         => ['sometimes', 'numeric', 'min:1'],
             'page_margin_top'     => ['sometimes', 'numeric', 'min:0'],

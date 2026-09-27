@@ -22,7 +22,8 @@ class UpdateDictionaryRequest extends FormRequest
                 'max:500',
                 Rule::unique('dictionary', 'title')
                     ->where('user_id', CurrentUser::id())
-                    ->ignore($this->route('model')),
+                    ->ignore($this->route('model'))
+                    ->whereNull('deleted_at'),
             ],
         ];
     }

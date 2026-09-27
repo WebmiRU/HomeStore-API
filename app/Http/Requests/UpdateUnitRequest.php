@@ -22,7 +22,8 @@ class UpdateUnitRequest extends FormRequest
                 'max:16',
                 Rule::unique('unit', 'title_short')
                     ->where('user_id', CurrentUser::id())
-                    ->ignore($this->route('model')),
+                    ->ignore($this->route('model'))
+                    ->whereNull('deleted_at'),
             ],
             'title_full'  => ['sometimes', 'string', 'max:255'],
         ];

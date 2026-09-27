@@ -22,7 +22,8 @@ class UpdatePropertyGroupRequest extends FormRequest
                 'max:500',
                 Rule::unique('property_group', 'title')
                     ->where('user_id', CurrentUser::id())
-                    ->ignore($this->route('model')),
+                    ->ignore($this->route('model'))
+                    ->whereNull('deleted_at'),
             ],
         ];
     }

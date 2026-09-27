@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\MarksDeleted;
 use App\Http\Resources\ImageResource;
 use App\Models\Store;
 use App\Services\AccessService;
@@ -11,6 +12,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class StoreResource extends JsonResource
 {
+    use MarksDeleted;
+
     public function toArray(Request $request): array
     {
         $rights = $this->resource instanceof Store
@@ -32,8 +35,11 @@ class StoreResource extends JsonResource
             'title_print' => $this->title_print,
             'parent_id'   => $this->parent_id,
             'warehouse_id'=> $this->warehouse_id,
-            'warehouse'   => $this->relationLoaded('warehouse') && $this->warehouse !== null
-                ? ['id' => $this->warehouse->id, 'title' => $this->warehouse->title]
+            'warehouse'   => $this->relationLoaded('warehouse')
+                ? $this->related($this->warehouse, [
+                    'id'    => $this->warehouse?->id,
+                    'title' => $this->warehouse?->title,
+                ])
                 : $this->when(false, null),
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,

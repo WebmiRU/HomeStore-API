@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreLabelPresetRequest extends FormRequest
 {
@@ -14,7 +15,7 @@ class StoreLabelPresetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'               => ['required', 'string', 'max:500', 'unique:label_preset,title'],
+            'title'               => ['required', 'string', 'max:500', Rule::unique('label_preset', 'title')->whereNull('deleted_at')],
             'page_width'          => ['required', 'numeric', 'min:1'],
             'page_height'         => ['required', 'numeric', 'min:1'],
             'page_margin_top'     => ['required', 'numeric', 'min:0'],

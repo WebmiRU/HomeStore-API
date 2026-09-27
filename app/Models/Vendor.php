@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\OwnedByUser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vendor extends Model
 {
+    use SoftDeletes;
     use OwnedByUser;
 
     protected $table = 'vendor';

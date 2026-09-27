@@ -166,6 +166,15 @@ class LabelListController extends Controller
      */
     public function generate(LabelList $labelList): Response|JsonResponse
     {
+        // Шаблона нет — печатать нечем. Раньше здесь молча собирался PDF с
+        // пустыми настройками, то есть с дефолтной вёрсткой: человек
+        // получал этикетки не того размера и не с тем шрифтом.
+        if ($labelList->label_preset_id === null) {
+            return response()->json([
+                'error' => 'У списка этикеток нет шаблона — назначьте шаблон и повторите',
+            ], 422);
+        }
+
         $labelList->load(['labelPreset.font', 'items.codes', 'stores.code', 'codes']);
 
         $labels = [];

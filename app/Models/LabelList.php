@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\OwnedByUser;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LabelList extends Model
 {
+    use SoftDeletes;
     use OwnedByUser;
 
 
@@ -31,7 +33,9 @@ class LabelList extends Model
 
     public function labelPreset()
     {
-        return $this->belongsTo(LabelPreset::class);
+        // Шаблон удаляется мягко, а список этикеток его переживает: связь
+        // остаётся, чтобы в графе «Шаблон» было видно название с пометкой.
+        return $this->belongsTo(LabelPreset::class)->withTrashed();
     }
 
     public function items()

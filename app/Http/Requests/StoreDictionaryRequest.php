@@ -20,7 +20,8 @@ class StoreDictionaryRequest extends FormRequest
                 'required',
                 'string',
                 'max:500',
-                Rule::unique('dictionary', 'title')->where('user_id', CurrentUser::id()),
+                Rule::unique('dictionary', 'title')->where('user_id', CurrentUser::id())
+                ->whereNull('deleted_at'),
             ],
         ];
     }

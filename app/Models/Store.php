@@ -6,9 +6,11 @@ use App\Models\Concerns\AccessibleByUser;
 use App\Models\Concerns\Searchable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Store extends Model
 {
+    use SoftDeletes;
     use Searchable;
     use AccessibleByUser;
 
@@ -30,12 +32,14 @@ class Store extends Model
 
     public function warehouse()
     {
-        return $this->belongsTo(Warehouse::class, 'warehouse_id');
+        return $this->belongsTo(Warehouse::class, 'warehouse_id')->withTrashed();
     }
 
     public function parent()
     {
-        return $this->belongsTo(Store::class, 'parent_id');
+        // С удалённым родителем связь не рвётся: в цепочке хранилищ его место
+        // должно оставаться видимым, иначе цепочка обрывается на полпути.
+        return $this->belongsTo(Store::class, 'parent_id')->withTrashed();
     }
 
     public function children()

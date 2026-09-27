@@ -21,7 +21,8 @@ class UpdateDictionaryValueRequest extends FormRequest
                 'max:500',
                 Rule::unique('dictionary_value', 'title')
                     ->where('dictionary_id', $this->route('model')->dictionary_id)
-                    ->ignore($this->route('value')),
+                    ->ignore($this->route('value'))
+                    ->whereNull('deleted_at'),
             ],
         ];
     }

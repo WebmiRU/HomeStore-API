@@ -6,9 +6,11 @@ use App\Models\Concerns\OwnedByUser;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LabelPreset extends Model
 {
+    use SoftDeletes;
     use OwnedByUser;
 
     protected $table = 'label_preset';

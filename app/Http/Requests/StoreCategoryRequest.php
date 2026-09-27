@@ -39,6 +39,10 @@ class StoreCategoryRequest extends FormRequest
         return function (string $attribute, mixed $value, \Closure $fail): void {
             $query = DB::table('category')
                 ->where('user_id', CurrentUser::id())
+                // Удалённая категория не занимает имя: уникальный индекс
+                // частичный, и проверка должна вести себя так же, иначе
+                // удалил бы «Манометры» — и больше не смог бы завести такие.
+                ->whereNull('deleted_at')
                 ->where('title', trim((string) $value));
 
             $parentId = $this->input('parent_id');

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Значение справочника. Своего user_id у модели нет — владение выводится
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class DictionaryValue extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'dictionary_value';
 
     protected $fillable = [

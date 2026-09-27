@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\MarksDeleted;
 use App\Http\Resources\ImageResource;
 use App\Models\Item;
 use App\Services\AccessService;
@@ -11,6 +12,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ItemResource extends JsonResource
 {
+    use MarksDeleted;
+
     public function toArray(Request $request): array
     {
         $rights = $this->resource instanceof Item
@@ -56,16 +59,16 @@ class ItemResource extends JsonResource
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
-            'vendor'   => $this->whenLoaded('vendor', fn() => $this->vendor === null ? null : [
+            'vendor'   => $this->whenLoaded('vendor', fn() => $this->related($this->vendor, [
                 'id'    => $this->vendor->id,
                 'title' => $this->vendor->title,
-            ]),
-            'category' => $this->whenLoaded('category', fn() => $this->category === null ? null : [
+            ])),
+            'category' => $this->whenLoaded('category', fn() => $this->related($this->category, [
                 'id'    => $this->category->id,
                 'title' => $this->category->title,
-            ]),
+            ])),
             'store'   => $this->whenLoaded('store', function () {
-                $chain = [$this->store->getAttributes()];
+                $chain = [$this->related($this->store, $this->store->getAttributes())];
                 foreach (array_reverse($this->store->ancestors()) as $ancestor) {
                     $chain[] = $ancestor;
                 }

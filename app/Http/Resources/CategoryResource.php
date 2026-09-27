@@ -2,11 +2,14 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\MarksDeleted;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class CategoryResource extends JsonResource
 {
+    use MarksDeleted;
+
     public function toArray(Request $request): array
     {
         return [
@@ -17,10 +20,10 @@ class CategoryResource extends JsonResource
                 : $this->when(false, null),
             'title'         => $this->title,
             'parent_id'     => $this->parent_id,
-            'parent'        => $this->whenLoaded('parent', fn () => $this->parent === null ? null : [
+            'parent'        => $this->whenLoaded('parent', fn () => $this->related($this->parent, [
                 'id'    => $this->parent->id,
                 'title' => $this->parent->title,
-            ]),
+            ])),
             // Считается прямыми предметами категории. Предметы вложенных
             // категорий в счётчик не входят — иначе число у родителя всегда
             // было бы больше суммы по ветвям, и его нельзя было бы сверить.

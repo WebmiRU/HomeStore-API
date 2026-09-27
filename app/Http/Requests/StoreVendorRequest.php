@@ -22,7 +22,8 @@ class StoreVendorRequest extends FormRequest
                 'required',
                 'string',
                 'max:500',
-                Rule::unique('vendor', 'title')->where('user_id', CurrentUser::id()),
+                Rule::unique('vendor', 'title')->where('user_id', CurrentUser::id())
+                ->whereNull('deleted_at'),
             ],
             // Описание в форме — textarea, поэтому длиннее, чем название.
             'description' => ['nullable', 'string', 'max:5000'],

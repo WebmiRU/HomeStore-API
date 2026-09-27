@@ -25,7 +25,8 @@ class StoreDictionaryValueRequest extends FormRequest
                 'string',
                 'max:500',
                 Rule::unique('dictionary_value', 'title')
-                    ->where('dictionary_id', $this->route('model')->id),
+                    ->where('dictionary_id', $this->route('model')->id)
+                    ->whereNull('deleted_at'),
             ],
         ];
     }

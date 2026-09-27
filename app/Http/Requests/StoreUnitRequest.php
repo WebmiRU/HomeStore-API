@@ -23,7 +23,8 @@ class StoreUnitRequest extends FormRequest
                 'required',
                 'string',
                 'max:16',
-                Rule::unique('unit', 'title_short')->where('user_id', CurrentUser::id()),
+                Rule::unique('unit', 'title_short')->where('user_id', CurrentUser::id())
+                ->whereNull('deleted_at'),
             ],
             'title_full'  => ['required', 'string', 'max:255'],
         ];

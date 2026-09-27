@@ -4,9 +4,11 @@ namespace App\Models;
 
 use App\Models\Concerns\OwnedByUser;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Category extends Model
 {
+    use SoftDeletes;
     use OwnedByUser;
 
     protected $table = 'category';
@@ -34,7 +36,7 @@ class Category extends Model
 
     public function parent()
     {
-        return $this->belongsTo(Category::class, 'parent_id');
+        return $this->belongsTo(Category::class, 'parent_id')->withTrashed();
     }
 
     public function children()

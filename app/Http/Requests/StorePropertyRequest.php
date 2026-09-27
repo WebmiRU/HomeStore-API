@@ -23,7 +23,8 @@ class StorePropertyRequest extends FormRequest
                 'required',
                 'string',
                 'max:500',
-                Rule::unique('property', 'title')->where('user_id', $userId),
+                Rule::unique('property', 'title')->where('user_id', $userId)
+                ->whereNull('deleted_at'),
             ],
             'type'   => ['required', Rule::enum(PropertyType::class)],
             'group_id' => [

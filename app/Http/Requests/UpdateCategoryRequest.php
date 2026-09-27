@@ -33,6 +33,10 @@ class UpdateCategoryRequest extends FormRequest
 
             $query = DB::table('category')
                 ->where('user_id', CurrentUser::id())
+                // Удалённая категория не занимает имя: уникальный индекс
+                // частичный, и проверка должна вести себя так же, иначе
+                // удалил бы «Манометры» — и больше не смог бы завести такие.
+                ->whereNull('deleted_at')
                 ->where('title', trim((string) $value));
 
             // parent_id объявлен как sometimes, и когда его не прислали, родитель
