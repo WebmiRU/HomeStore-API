@@ -63,5 +63,16 @@ class ThumbnailSeeder extends Seeder
             ]
         );
 
+        // Кадр для просмотра фотографии по клику: вписывание, а не обрезка —
+        // панорамное фото по краям не режется.
+        Thumbnail::updateOrCreate(
+            ['key' => '800x800_contain'],
+            [
+                'format' => ImageFormat::Avif,
+                'width' => 800,
+                'height' => 800,
+                'crop' => ImageCrop::Contain,
+            ]
+        );
     }
 }
