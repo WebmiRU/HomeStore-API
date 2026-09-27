@@ -19,6 +19,7 @@ use App\Support\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Корзина: удалённые записи, восстановление и окончательное удаление.
@@ -124,6 +125,72 @@ class TrashService
             ->orderByDesc('deleted_at')
             ->orderByDesc('id')
             ->paginate(50, ['*'], 'page', $page);
+    }
+
+    /**
+     * Сколько записей удалено в каждом разделе.
+     *
+     * Один запрос UNION ALL на все разделы, а не тринадцать COUNT: счётчики
+     * нужны на каждой вкладке сразу, и таблицы не индексированы по deleted_at,
+     * так что тринадцать походов в базу за один показ страницы — лишнее.
+     */
+    public function counts(): array
+    {
+        $userId = (int) CurrentUser::id();
+
+        $counts = array_fill_keys(array_keys(self::SECTIONS), 0);
+
+        $selects = [];
+        foreach (array_keys(self::SECTIONS) as $section) {
+            // Имя таблицы берётся в кавычки: одна из секций живёт в таблице
+            // «user», а это зарезервированное слово.
+            $selects[] = sprintf(
+                "SELECT '%s' AS section, COUNT(*) AS total FROM \"%s\" WHERE deleted_at IS NOT NULL AND %s",
+                $section,
+                $this->tableNameFor($section),
+                $this->ownershipSqlFor($section, $userId)
+            );
+        }
+
+        foreach (DB::select(implode(' UNION ALL ', $selects)) as $row) {
+            $counts[$row->section] = (int) $row->total;
+        }
+
+        return $counts;
+    }
+
+    /** Имя таблицы раздела по модели: у большинства совпадает с ключом адреса. */
+    private function tableNameFor(string $section): string
+    {
+        $model = $this->modelFor($section);
+
+        // Отдельная переменная, а не new прямо в выражении: иначе PHP читает
+        // это как попытку создать экземпляр сервиса.
+        return (new $model)->getTable();
+    }
+
+    /**
+     * Условие «запись моя» в SQL.
+     *
+     * Отдельным методом, потому что оно нужно дважды: здесь сырым запросом и
+     * в ownedBy() через Eloquent. Расхождение между ними было бы почти
+     * незаметно — счётчик показал бы 0 при непустом разделе.
+     */
+    private function ownershipSqlFor(string $section, int $userId): string
+    {
+        $table = $this->tableNameFor($section);
+
+        if ($section === 'dictionary-value') {
+            return sprintf('dictionary_id IN (SELECT id FROM dictionary WHERE user_id = %d)', $userId);
+        }
+
+        if ($section === 'user') {
+            // «user» — зарезервированное слово, а владельцем записи является
+            // она сама, то есть её первичный ключ, а не user_id.
+            return sprintf('"%s".id = %d', $table, $userId);
+        }
+
+        return sprintf('%s.user_id = %d', $table, $userId);
     }
 
     /**

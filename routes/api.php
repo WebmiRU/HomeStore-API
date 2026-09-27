@@ -98,6 +98,8 @@ Route::prefix('vendor')->controller(VendorController::class)->group(function ():
 // удаление. Тип раздела в адресе, а не в теле: вкладка корзины должна быть
 // ссылкой, которую можно открыть напрямую и вернуться по «назад».
 Route::prefix('trash')->controller(TrashController::class)->group(function (): void {
+    // counts выше {section}: иначе 'counts' разобрался бы как имя раздела.
+    Route::get('counts', 'counts');
     Route::get('{section}', 'index');
     Route::post('{section}/restore', 'restore');
     Route::post('{section}/purge', 'purge');

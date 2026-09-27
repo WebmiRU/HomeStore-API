@@ -46,6 +46,21 @@ class TrashController extends Controller
     }
 
     /**
+     * GET /api/trash/counts — счётчики удалённых по всем разделам.
+     *
+     * Отдельный маршрут, а не поле в каждом списке: вкладкам нужны все
+     * тринадцать чисел сразу, иначе пришлось бы тринадцать раз открывать
+     * каждый раздел, чтобы узнать, где что лежит.
+     *
+     * Путь в обход списков: значение 'counts' не совпадает ни с одним
+     * разделом, поэтому попасть сюда случайно нельзя.
+     */
+    public function counts(): JsonResponse
+    {
+        return response()->json(['counts' => $this->trash->counts()]);
+    }
+
+    /**
      * POST /api/trash/{section}/restore
      */
     public function restore(string $section, TrashActionRequest $request): JsonResponse

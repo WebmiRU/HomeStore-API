@@ -54,4 +54,31 @@ abstract class AuditObserves
             $this->logs->payloadForDeleted($model),
         );
     }
+
+    /**
+     * Восстановление из корзины — тоже событие журнала.
+     *
+     * Без него по истории нельзя отличить «вернули удалённое» от «завели
+     * заново то же самое»: обе истории выглядели бы одинаково, удаление
+     * плюс создание. Событие у сущностей, которые удаляются физически,
+     * отсутствует — и тогда запись просто не пишется.
+     *
+     * Восстановление не трогает updated_at (строка не менялась, только
+     * снят deleted_at), поэтому снапшот берём такой же, как при создании:
+     * иначе в журнале было бы пусто.
+     */
+    public function restored(Model $model): void
+    {
+        $action = $this->logs->restoredActionFor($model);
+
+        if ($action === null) {
+            return;
+        }
+
+        $this->logs->recordForModel(
+            $action,
+            $model,
+            $this->logs->payloadForCreated($model),
+        );
+    }
 }
