@@ -13,6 +13,7 @@ use App\Models\Store;
 use App\Services\AccessService;
 use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class ImageController extends Controller
 {
@@ -24,34 +25,97 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        $image = $this->store($request, $model);
+        [$image, $duplicates] = $this->store($request, $model);
 
-        $this->logImage('item', AuditAction::ImageAttached, $model, $image);
+        // Повтор не пишем в журнал: ничего не изменилось, а запись «фото
+        // добавлено» была бы враньём. Убирание дублей тоже не пишется —
+        // это уборка следов прежнего поведения, а не действие человека.
+        if ($duplicates === null) {
+            $this->logImage('item', AuditAction::ImageAttached, $model, $image);
+        }
 
-        return (new ImageResource($image))->response()->setStatusCode(201);
+        return $this->uploadResponse($image, $duplicates);
     }
 
     public function storeForStore(StoreImageRequest $request, Store $model): JsonResponse
     {
         $this->requireEdit($model);
 
-        $image = $this->store($request, $model);
+        [$image, $duplicates] = $this->store($request, $model);
 
-        $this->logImage('store', AuditAction::ImageAttached, $model, $image);
+        if ($duplicates === null) {
+            $this->logImage('store', AuditAction::ImageAttached, $model, $image);
+        }
 
-        return (new ImageResource($image))->response()->setStatusCode(201);
+        return $this->uploadResponse($image, $duplicates);
     }
 
-    private function store(StoreImageRequest $request, Item|Store $model): Image
+    /**
+     * Привязка картинки к сущности и ответ на неё.
+     *
+     * Тело осталось прежним (data с картинкой), добавлены два признака:
+     * attached — создана ли новая привязка, и duplicates_removed — сколько
+     * повторов убрано. Клиенту нужно сказать человеку «эта картинка уже была
+     * в списке», иначе повтор выглядит как тишина, в которой не разберёшься —
+     * то ли загрузка не удалась, то ли дубликат.
+     *
+     * Одного счётчика не хватило бы: когда картинка привязана была ровно
+     * один раз, убирать нечего, счётчик был бы нулём — тем же, что и у
+     * успешной загрузки, и клиент добавил бы дубль в списке у себя.
+     */
+    private function uploadResponse(?Image $image, ?int $duplicates): JsonResponse
+    {
+        return response()->json([
+            'data'               => $image === null ? null : (new ImageResource($image))->resolve(),
+            'attached'           => $duplicates === null,
+            'duplicates_removed' => $duplicates ?? 0,
+        ], $duplicates === null ? 201 : 200);
+    }
+
+    /**
+     * Загружает файл и привязывает его к сущности ровно один раз.
+     *
+     * Возвращает картинку и null, если привязка создана, либо число убранных
+     * дублей, если картинка у сущности уже была.
+     *
+     * Картинки складываются в каталог по sha256, поэтому один и тот же файл,
+     * загруженный повторно, приходит как та же самая строка image. Повторная
+     * привязка создала бы вторую строку в image_m2m_* — и в списке фото одна
+     * картинка стояла бы дважды, а счётчик показывал бы неправду. С мульти-
+     * выбором файлов такое повторение становится обычным делом: один и тот же
+     * файл кладут в пачку дважды или повторяют неудачную загрузку.
+     *
+     * Остаётся самая ранняя строка привязки: у неё уже есть alt и вес, а
+     * выбрасывать её в пользу новой значило бы терять подпись, которую
+     * человек старательно вписал.
+     */
+    private function store(StoreImageRequest $request, Item|Store $model): array
     {
         $image = Image::fromUploadedFile($request->file('file'));
+
+        [$pivot, $key] = $model instanceof Store
+            ? ['image_m2m_store', 'store_id']
+            : ['image_m2m_item', 'item_id'];
+
+        $existing = DB::table($pivot)
+            ->where($key, $model->id)
+            ->where('image_id', $image->id)
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
+
+        if ($existing !== []) {
+            $removed = DB::table($pivot)->whereIn('id', array_slice($existing, 1))->delete();
+
+            return [$model->images()->where('image.id', $image->id)->first(), $removed];
+        }
 
         $model->images()->attach($image->id, [
             'alt'    => null,
             'weight' => $this->nextWeight($model),
         ]);
 
-        return $model->images()->where('image.id', $image->id)->first();
+        return [$model->images()->where('image.id', $image->id)->first(), null];
     }
 
     private function nextWeight(Item|Store $model): int
