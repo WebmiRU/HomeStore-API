@@ -17,6 +17,7 @@ use App\Http\Controllers\PropertyGroupController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StockOperationController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\TrashController;
 use App\Http\Controllers\ThumbnailController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserAuthController;
@@ -91,6 +92,15 @@ Route::prefix('vendor')->controller(VendorController::class)->group(function ():
     // загрузки и снятия, а не many-to-many, как у фото предмета.
     Route::post('{model}/logo', 'storeLogo');
     Route::delete('{model}/logo', 'deleteLogo');
+});
+
+// Корзина: удалённые записи по разделам, восстановление и окончательное
+// удаление. Тип раздела в адресе, а не в теле: вкладка корзины должна быть
+// ссылкой, которую можно открыть напрямую и вернуться по «назад».
+Route::prefix('trash')->controller(TrashController::class)->group(function (): void {
+    Route::get('{section}', 'index');
+    Route::post('{section}/restore', 'restore');
+    Route::post('{section}/purge', 'purge');
 });
 
 Route::prefix('property')->controller(PropertyController::class)->group(function (): void {
