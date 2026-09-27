@@ -23,8 +23,9 @@ use Illuminate\Support\Collection;
  * Исключение — верхний уровень склада: там удалённое хранилище в дерево не
  * попадает, иначе вкладка начиналась бы с того, чего на складе уже нет.
  *
- * Данные берутся тремя запросами — узлы, предметы, сборка в PHP. По запросу
- * на узел вышло бы по сотне обращений к базе за один показ вкладки.
+ * Число запросов: по одному на уровень дерева (обход идёт по уровням) плюс
+ * три на картинки и предметы. Сборка — в PHP. По запросу на узел вышло бы по
+ * сотне обращений к базе за один показ вкладки.
  */
 class StorageContentsService
 {
@@ -98,6 +99,7 @@ class StorageContentsService
             'kind'          => 'warehouse',
             'deleted'       => $warehouse->trashed(),
             // Предметов у самого склада нет: они лежат в хранилищах.
+            'image'         => null,
             'items_count'   => 0,
             'items'         => [],
             'items_hidden'  => 0,
@@ -156,6 +158,7 @@ class StorageContentsService
                 'title'        => $node['title'],
                 'kind'         => 'store',
                 'deleted'      => $node['deleted'],
+                'image'        => $node['image'] ?? null,
                 'items_count'  => count($own),
                 'items'        => array_slice($own, 0, self::ITEMS_PREVIEW),
                 'items_hidden' => count($own) > self::ITEMS_PREVIEW ? count($own) - self::ITEMS_PREVIEW : 0,
@@ -221,17 +224,17 @@ class StorageContentsService
         }
 
         // withTrashed(): удалённое хранилище показываем (см. docblock).
-        $nodes = new Collection();
+        $stores = new Collection();
 
         foreach ($this->fetchStoresById($rootIds) as $store) {
             if ($skipDeleted && $store->trashed()) {
                 continue;
             }
 
-            $nodes->put($store->id, $this->nodeOf($store));
+            $stores->put($store->id, $store);
         }
 
-        $pending = $nodes->keys()->all();
+        $pending = $stores->keys()->all();
 
         while ($pending !== []) {
             // Запрос делается по текущему уровню, и только потом pending
@@ -241,28 +244,24 @@ class StorageContentsService
             $pending = [];
 
             foreach ($children as $child) {
-                if ($nodes->has($child->id)) {
+                if ($stores->has($child->id)) {
                     continue;
                 }
 
-                $nodes->put($child->id, $this->nodeOf($child));
+                $stores->put($child->id, $child);
                 $pending[] = $child->id;
             }
         }
 
-        return $nodes;
+        // Картинки — одним запросом на всё дерево, а не по одному на
+        // уровень: иначе на дереве в шесть ступеней выходило бы вдвое больше
+        // обращений к базе, чем нужно, и заметно ровно на больших складах.
+        $this->attachFirstImage($stores);
+
+        return $stores->map(fn (Store $store) => $this->nodeOf($store));
     }
 
-    /**
-     * Хранилища по списку id — это стартовые узлы обхода.
-     *
-     * Отдельный метод не для красоты, а потому что обход идёт по двум
-     * разным признакам: старт берём по id (это либо само хранилище, либо
-     * верхний уровень склада), а следующий шаг — по parent_id. Один
-     * запрос на оба признака молча зацикливал бы обход на первом же уровне.
-     *
-     * @return Collection<int, Store>
-     */
+    /** @return Collection<int, Store> */
     private function fetchStoresById(array $ids): Collection
     {
         return Store::withTrashed()
@@ -271,17 +270,37 @@ class StorageContentsService
             ->get(['id', 'title', 'parent_id', 'warehouse_id', 'deleted_at']);
     }
 
-    /**
-     * Потомки указанных хранилищ — следующий шаг обхода.
-     *
-     * @return Collection<int, Store>
-     */
+    /** @return Collection<int, Store> */
     private function fetchStoresByParent(array $parentIds): Collection
     {
         return Store::withTrashed()
             ->whereIn('parent_id', $parentIds)
             ->orderBy('id')
             ->get(['id', 'title', 'parent_id', 'deleted_at']);
+    }
+
+    /**
+     * Проставляет хранилищам первую картинку — одним запросом на коллекцию.
+     *
+     * Забираются все картинки, а не одна: порядок задаёт вес в связке, и
+     * взять «первую» можно только сортировкой по ней, а та живёт в eager
+     * load. Картинок у хранилища всё равно единицы.
+     *
+     * @param  Collection<int, Store>  $stores  хранилища, собранные по уровням
+     */
+    private function attachFirstImage(Collection $stores): void
+    {
+        if ($stores->isEmpty()) {
+            return;
+        }
+
+        Store::withTrashed()
+            ->with(['images' => fn ($query) => $query->orderBy('image_m2m_store.weight')->orderBy('image_id')])
+            ->whereIn('id', $stores->keys()->all())
+            ->get()
+            ->each(function (Store $store) use ($stores): void {
+                $stores->get($store->id)?->setAttribute('first_image', $store->images->first());
+            });
     }
 
     /** @return array<string, mixed> */
@@ -292,6 +311,29 @@ class StorageContentsService
             'title'     => $store->title,
             'parent_id' => $store->parent_id,
             'deleted'   => $store->trashed(),
+            'image'     => $this->imageNode($store->getAttribute('first_image')),
+        ];
+    }
+
+    /**
+     * Картинка в том же виде, что у остальных списков: миниатюра строится по
+     * sha256, а url нужен запасным вариантом, если её ещё нет.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageNode(mixed $image): ?array
+    {
+        if ($image === null) {
+            return null;
+        }
+
+        return [
+            'id'            => $image->id,
+            'url'           => $image->url(),
+            'sha256'        => $image->sha256,
+            'alt'           => $image->pivot?->alt,
+            'original_name' => $image->original_name,
+            'mime'          => $image->mime,
         ];
     }
 
@@ -314,12 +356,18 @@ class StorageContentsService
 
         Item::query()
             ->whereIn('store_id', $storeIds)
+            // Картинка нужна одна — первая по весу, как её показывают списки.
+            // Порядок задаётся в запросе, а не через withCount: сортировка по
+            // pivot-весу в связке сработала бы, но лишний счётчик в выборке
+            // для этого не нужен.
+            ->with(['images' => fn ($query) => $query->orderBy('image_m2m_item.weight')->orderBy('image_id')])
             ->orderBy('title')
             ->get()
             ->each(function (Item $item) use (&$grouped): void {
                 $grouped[(int) $item->store_id][] = [
                     'id'    => $item->id,
                     'title' => $item->title,
+                    'image' => $this->imageNode($item->images->first()),
                 ];
             });
 
