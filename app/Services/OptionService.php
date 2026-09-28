@@ -111,8 +111,8 @@ class OptionService
             'locale'          => Option::LOCALE_RU,
             'show_code_block' => true,
             'remember_operation_mode' => true,
-            'theme'          => Option::THEME_DARK,
-            'accent'         => Option::ACCENT_GREEN,
+            'theme'          => Option::THEME_SYSTEM,
+            'accent'         => Option::ACCENT_BLUE,
         ];
     }
 
