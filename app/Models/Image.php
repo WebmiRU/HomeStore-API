@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ImageCrop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +28,37 @@ class Image extends Model
         'height' => 'integer',
         'size'   => 'integer',
     ];
+
+    /**
+     * Наибольшая сторона миниатюры, которую ещё можно сделать из этой картинки.
+     *
+     * Обрезка по квадрату режет по меньшей стороне: квадрат 160×160 из снимка
+     * 473×162 получится (162 ≥ 160), а из 90×60 — нет, пришлось бы растянуть,
+     * а качество от растягивания не лучше. Вписывание уменьшает по большей
+     * стороне, и там предел — она сама.
+     *
+     * null, когда размеров оригинала нет: тогда клиент решает по каталогу, как
+     * и раньше.
+     */
+    public function thumbLimit(ImageCrop $crop): ?int
+    {
+        if ($this->width === null || $this->height === null) {
+            return null;
+        }
+
+        return $crop === ImageCrop::Cover
+            ? (int) min($this->width, $this->height)
+            : (int) max($this->width, $this->height);
+    }
+
+    /** Пределы по обеим обрезкам: что вообще можно получить из картинки. */
+    public function thumbLimits(): ?array
+    {
+        $cover = $this->thumbLimit(ImageCrop::Cover);
+        $contain = $this->thumbLimit(ImageCrop::Contain);
+
+        return $cover === null ? null : ['cover' => $cover, 'contain' => $contain];
+    }
 
     public static function fromUploadedFile(UploadedFile $file): self
     {

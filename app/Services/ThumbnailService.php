@@ -65,38 +65,60 @@ class ThumbnailService
         return "images/thumbnails/{$thumbnail->key}/{$sha256}";
     }
 
+    /**
+     * Вписывает или обрезает кадр под коробку width×height.
+     *
+     * Главное здесь — не увеличивать. Из снимка 473×162 нельзя получить
+     * 800×800: растянутая копия качеством не лучше, а весит в разы больше, и
+     * браузер получает «картинку», которой не существует. Если коробка больше
+     * оригинала, отдаём то, что есть: при вписывании — сам оригинал, при
+     * обрезке — квадрат по его меньшей стороне.
+     *
+     * Размер результата поэтому может оказаться меньше запрошенного: ключ
+     * миниатюры называет коробку, а не файл. Клиент знает настоящие размеры
+     * оригинала и объявляет в srcset ширину именно файла.
+     */
     private function fit(GdImage $source, int $width, int $height, ImageCrop $crop): GdImage
     {
         $sourceWidth = imagesx($source);
         $sourceHeight = imagesy($source);
 
-        if ($crop === ImageCrop::Cover) {
-            $scale = max($width / $sourceWidth, $height / $sourceHeight);
-            $scaled = $this->resize($source, (int) ceil($sourceWidth * $scale), (int) ceil($sourceHeight * $scale));
+        $scale = $crop === ImageCrop::Cover
+            // Обрезка идёт по большей из двух сторон: кадр должен накрыть коробку
+            // целиком, лишнее срежется.
+            ? min(1.0, max($width / $sourceWidth, $height / $sourceHeight))
+            // Вписывание — по меньшей: картинка целиком внутри коробки.
+            : min(1.0, min($width / $sourceWidth, $height / $sourceHeight));
 
-            $canvas = $this->canvas($width, $height);
-            imagecopy(
-                $canvas,
-                $scaled,
-                0,
-                0,
-                (int) floor((imagesx($scaled) - $width) / 2),
-                (int) floor((imagesy($scaled) - $height) / 2),
-                $width,
-                $height,
-            );
-            imagedestroy($scaled);
-
-            return $canvas;
-        }
-
-        $scale = min($width / $sourceWidth, $height / $sourceHeight);
-
-        return $this->resize(
+        $scaled = $this->resize(
             $source,
             max(1, (int) round($sourceWidth * $scale)),
             max(1, (int) round($sourceHeight * $scale)),
         );
+
+        if ($crop === ImageCrop::Contain) {
+            return $scaled;
+        }
+
+        // Холст не может быть больше получившейся картинки: иначе imagecopy
+        // вылезет за края и по ним будет прозрачная пустота.
+        $canvasWidth = min($width, imagesx($scaled));
+        $canvasHeight = min($height, imagesy($scaled));
+        $canvas = $this->canvas($canvasWidth, $canvasHeight);
+
+        imagecopy(
+            $canvas,
+            $scaled,
+            0,
+            0,
+            (int) floor((imagesx($scaled) - $canvasWidth) / 2),
+            (int) floor((imagesy($scaled) - $canvasHeight) / 2),
+            $canvasWidth,
+            $canvasHeight,
+        );
+        imagedestroy($scaled);
+
+        return $canvas;
     }
 
     private function resize(GdImage $source, int $width, int $height): GdImage

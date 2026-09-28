@@ -18,6 +18,12 @@ class ImageResource extends JsonResource
             'width'         => $this->width,
             'height'        => $this->height,
             'size'          => $this->size,
+            /**
+             * Пределы миниатюр по обрезкам: какие стороны ещё можно получить
+             * из этого оригинала без увеличения. Клиент собирает srcset только
+             * из них, а где размера не хватает — подставляет сам оригинал.
+             */
+            'thumbs'        => $this->resource->thumbLimits(),
             'alt'           => $this->pivot?->alt,
             'weight'        => $this->pivot?->weight,
             'created_at'    => $this->created_at,

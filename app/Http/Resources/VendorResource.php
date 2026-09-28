@@ -25,6 +25,7 @@ class VendorResource extends JsonResource
             'logo_sha'    => $this->logoSha(),
             'logo_width'  => $this->logoImage?->width,
             'logo_height' => $this->logoImage?->height,
+            'logo_thumbs' => $this->logoImage?->thumbLimits(),
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
         ];

@@ -17,6 +17,7 @@ class UserProfileResource extends JsonResource
             'avatar_sha' => $this->avatarSha(),
             'avatar_width' => $this->avatarImage?->width,
             'avatar_height' => $this->avatarImage?->height,
+            'avatar_thumbs' => $this->avatarImage?->thumbLimits(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
