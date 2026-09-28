@@ -8,8 +8,10 @@ use App\Http\Requests\StoreImageRequest;
 use App\Http\Requests\UpdateImageAltRequest;
 use App\Http\Resources\ImageResource;
 use App\Models\Image;
+use App\Models\ImageOwner;
 use App\Models\Item;
 use App\Models\Store;
+use App\Models\Warehouse;
 use App\Services\AccessService;
 use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +47,19 @@ class ImageController extends Controller
 
         if ($duplicates === null) {
             $this->logImage('store', AuditAction::ImageAttached, $model, $image);
+        }
+
+        return $this->uploadResponse($image, $duplicates);
+    }
+
+    public function storeForWarehouse(StoreImageRequest $request, Warehouse $model): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        [$image, $duplicates] = $this->store($request, $model);
+
+        if ($duplicates === null) {
+            $this->logImage('warehouse', AuditAction::ImageAttached, $model, $image);
         }
 
         return $this->uploadResponse($image, $duplicates);
@@ -89,13 +104,11 @@ class ImageController extends Controller
      * выбрасывать её в пользу новой значило бы терять подпись, которую
      * человек старательно вписал.
      */
-    private function store(StoreImageRequest $request, Item|Store $model): array
+    private function store(StoreImageRequest $request, ImageOwner $model): array
     {
         $image = Image::fromUploadedFile($request->file('file'));
 
-        [$pivot, $key] = $model instanceof Store
-            ? ['image_m2m_store', 'store_id']
-            : ['image_m2m_item', 'item_id'];
+        [$pivot, $key] = $this->pivotFor($model);
 
         $existing = DB::table($pivot)
             ->where($key, $model->id)
@@ -118,11 +131,27 @@ class ImageController extends Controller
         return [$model->images()->where('image.id', $image->id)->first(), null];
     }
 
-    private function nextWeight(Item|Store $model): int
+    private function nextWeight(ImageOwner $model): int
     {
-        $currentMax = (int) $model->images()->max('image_m2m_' . ($model instanceof Store ? 'store' : 'item') . '.weight');
+        [, $key] = $this->pivotFor($model);
 
-        return $currentMax + 1;
+        return (int) $model->images()->max('image_m2m_' . rtrim($key, '_id') . '.weight') + 1;
+    }
+
+    /**
+     * Таблица связей с картинками и её ключ.
+     *
+     * Список здесь, а не троичные условия по instanceof: сущностей с
+     * фотографиями стало три, и каждое новое место требовало бы править ещё
+     * четыре места в контроллере.
+     */
+    private function pivotFor(ImageOwner $model): array
+    {
+        return match (true) {
+            $model instanceof Item      => ['image_m2m_item', 'item_id'],
+            $model instanceof Store     => ['image_m2m_store', 'store_id'],
+            default                     => ['image_m2m_warehouse', 'warehouse_id'],
+        };
     }
 
     public function updateAltForItem(UpdateImageAltRequest $request, Item $model, Image $image): JsonResponse
@@ -171,7 +200,40 @@ class ImageController extends Controller
         return response()->json(['ids' => $request->validated('ids')]);
     }
 
-    private function reorder(Item|Store $model, array $ids): void
+    public function reorderForWarehouse(ReorderImagesRequest $request, Warehouse $model): JsonResponse
+    {
+        $this->requireEdit($model);
+        $this->reorder($model, $request->validated('ids'));
+        $this->logImage('warehouse', AuditAction::ImageReordered, $model, null, [
+            'ids' => $request->validated('ids'),
+        ]);
+
+        return response()->json(['ids' => $request->validated('ids')]);
+    }
+
+    public function updateAltForWarehouse(UpdateImageAltRequest $request, Warehouse $model, Image $image): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+        $this->logImage('warehouse', AuditAction::ImageAltUpdated, $model, $image, [
+            'alt' => $request->input('alt'),
+        ]);
+
+        return (new ImageResource($this->withPivot($model, $image)))->response();
+    }
+
+    public function removeForWarehouse(Warehouse $model, Image $image): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        $model->images()->detach($image->id);
+        $this->logImage('warehouse', AuditAction::ImageDetached, $model, $image);
+
+        return response()->json(null, 204);
+    }
+
+    private function reorder(ImageOwner $model, array $ids): void
     {
         $attachedIds = $model->images()->pluck('image.id')->all();
 
@@ -194,7 +256,7 @@ class ImageController extends Controller
         }
     }
 
-    private function withPivot(Item|Store $model, Image $image): Image
+    private function withPivot(ImageOwner $model, Image $image): Image
     {
         return $model->images()->where('image.id', $image->id)->first();
     }
@@ -219,7 +281,7 @@ class ImageController extends Controller
         return response()->json(null, 204);
     }
 
-    private function requireEdit(Item|Store $model): void
+    private function requireEdit(ImageOwner $model): void
     {
         abort_unless(app(AccessService::class)->canEdit($model), 403);
     }
@@ -227,7 +289,7 @@ class ImageController extends Controller
     private function logImage(
         string $kind,
         AuditAction $action,
-        Item|Store $model,
+        ImageOwner $model,
         ?Image $image,
         array $extra = [],
     ): void {
@@ -239,7 +301,7 @@ class ImageController extends Controller
 
         $this->logs->record(
             $action,
-            $kind === 'item' ? 'item_id' : 'store_id',
+            $kind . '_id',
             (int) $model->id,
             (int) ($model->user_id ?? 0),
             $payload,

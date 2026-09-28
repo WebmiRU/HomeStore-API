@@ -17,11 +17,22 @@ class Image extends Model
         'original_name',
         'mime',
         'sha256',
+        'width',
+        'height',
+        'size',
+    ];
+
+    protected $casts = [
+        'width'  => 'integer',
+        'height' => 'integer',
+        'size'   => 'integer',
     ];
 
     public static function fromUploadedFile(UploadedFile $file): self
     {
         $sha256 = hash_file('sha256', $file->getRealPath());
+        $size = (int) filesize($file->getRealPath());
+        $dimensions = @getimagesize($file->getRealPath());
 
         $existing = self::query()->where('sha256', $sha256)->first();
 
@@ -37,12 +48,21 @@ class Image extends Model
 
         Storage::disk('s3')->put($path, file_get_contents($file->getRealPath()));
 
+        // Размеры оригинала: клиент по ним режет srcset, чтобы не предлагать
+        // браузеру вариант больше, чем в картинке есть. null, если файл не
+        // распознан как картинка, — тогда клиент просто возьмёт что есть.
+        $width = $dimensions === false ? null : $dimensions[0];
+        $height = $dimensions === false ? null : $dimensions[1];
+
         try {
             return self::create([
                 'path'          => $path,
                 'original_name' => $file->getClientOriginalName(),
                 'mime'          => $file->getMimeType(),
                 'sha256'        => $sha256,
+                'width'         => $width,
+                'height'        => $height,
+                'size'          => $size,
             ]);
         } catch (QueryException $e) {
             if ($e->getCode() !== '23505') {

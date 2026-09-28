@@ -5,10 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\AccessibleByUser;
 use App\Models\Concerns\Searchable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Item extends Model
+class Item extends Model implements ImageOwner
 {
     use SoftDeletes;
     use Searchable;
@@ -97,7 +98,7 @@ class Item extends Model
             ->orderBy('item_property.sort');
     }
 
-    public function images()
+    public function images(): BelongsToMany
     {
         return $this->belongsToMany(Image::class, 'image_m2m_item')
             ->withPivot('image_id', 'item_id', 'alt', 'weight')

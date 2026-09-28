@@ -16,7 +16,7 @@ class WarehouseController extends Controller
     public function index(): ResourceCollection
     {
         return WarehouseResource::collection(
-            Warehouse::with('user')
+            Warehouse::with(['user', 'images'])
                 ->orderByDesc('id')
                 ->paginate()
         );
@@ -25,7 +25,7 @@ class WarehouseController extends Controller
     public function all(): ResourceCollection
     {
         return WarehouseResource::collection(
-            Warehouse::with('user')
+            Warehouse::with(['user', 'images'])
                 ->orderByDesc('id')
                 ->get()
         );
@@ -33,7 +33,7 @@ class WarehouseController extends Controller
 
     public function get(Warehouse $model): WarehouseResource
     {
-        return new WarehouseResource($model->load('user'));
+        return new WarehouseResource($model->load(['user', 'images']));
     }
 
     /**
@@ -54,7 +54,7 @@ class WarehouseController extends Controller
     {
         $warehouse = Warehouse::create($request->validated());
 
-        return (new WarehouseResource($warehouse->load('user')))
+        return (new WarehouseResource($warehouse->load(['user', 'images'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -65,7 +65,7 @@ class WarehouseController extends Controller
 
         $model->update($request->validated());
 
-        return new WarehouseResource($model->load('user'));
+        return new WarehouseResource($model->load(['user', 'images']));
     }
 
     public function delete(Warehouse $model): JsonResponse

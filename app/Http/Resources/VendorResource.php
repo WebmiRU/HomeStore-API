@@ -23,6 +23,8 @@ class VendorResource extends JsonResource
             // легче оригинала с логотипом во всю ширину.
             'logo_url'    => $this->logoUrl(),
             'logo_sha'    => $this->logoSha(),
+            'logo_width'  => $this->logoImage?->width,
+            'logo_height' => $this->logoImage?->height,
             'created_at'  => $this->created_at,
             'updated_at'  => $this->updated_at,
         ];

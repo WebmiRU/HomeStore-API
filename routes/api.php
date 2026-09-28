@@ -206,12 +206,16 @@ Route::prefix('item')->controller(ItemController::class)->group(function (): voi
 Route::prefix('image')->controller(ImageController::class)->group(function (): void {
     Route::post('item/{model}', 'storeForItem');
     Route::post('store/{model}', 'storeForStore');
+    Route::post('warehouse/{model}', 'storeForWarehouse');
     Route::patch('item/{model}/image/{image}/alt', 'updateAltForItem');
     Route::patch('store/{model}/image/{image}/alt', 'updateAltForStore');
+    Route::patch('warehouse/{model}/image/{image}/alt', 'updateAltForWarehouse');
     Route::post('item/{model}/image/reorder', 'reorderForItem');
     Route::post('store/{model}/image/reorder', 'reorderForStore');
+    Route::post('warehouse/{model}/image/reorder', 'reorderForWarehouse');
     Route::delete('item/{model}/image/{image}', 'removeForItem');
     Route::delete('store/{model}/image/{image}', 'removeForStore');
+    Route::delete('warehouse/{model}/image/{image}', 'removeForWarehouse');
 });
 
 Route::prefix('label')->controller(LabelController::class)->group(function (): void {

@@ -15,6 +15,8 @@ class UserProfileResource extends JsonResource
             'email'      => $this->email,
             'avatar_url' => $this->avatarUrl(),
             'avatar_sha' => $this->avatarSha(),
+            'avatar_width' => $this->avatarImage?->width,
+            'avatar_height' => $this->avatarImage?->height,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

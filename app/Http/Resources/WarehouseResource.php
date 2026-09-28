@@ -23,6 +23,7 @@ class WarehouseResource extends JsonResource
             'user'       => $this->relationLoaded('user') && $this->user !== null
                 ? new UserBriefResource($this->user)
                 : $this->when(false, null),
+            'images'     => ImageResource::collection($this->whenLoaded('images')),
             'rights'     => $rights,
             'is_owner'   => $this->user_id !== null && (int) $this->user_id === (int) CurrentUser::id(),
             'can_create' => in_array('create', $rights, true),
