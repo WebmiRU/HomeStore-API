@@ -323,7 +323,7 @@ class CodeController extends Controller
         // возрастные корзины пусты, а удалить всё разом нужно.
         $buckets[] = [
             'days'  => 0,
-            'label' => 'все, независимо от возраста',
+            'label' => __('все, независимо от возраста'),
             'count' => $total,
         ];
 

@@ -63,7 +63,7 @@ class AccessController extends Controller
     {
         $user_id = (int) $request->input('user_id');
 
-        abort_if($user_id === (int) CurrentUser::id(), 422, 'Нельзя выдать права самому себе');
+        abort_if($user_id === (int) CurrentUser::id(), 422, __('Нельзя выдать права самому себе'));
 
         $warehouse = Warehouse::query()->withoutGlobalScopes()->findOrFail($request->input('warehouse_id'));
 

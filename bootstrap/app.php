@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureTokenAuth;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -35,7 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
-            Route::middleware('api')
+            // SetLocale идёт в api-группе, а не в общем стеке: язык ответов
+            // нужен только API, а веб-роут отдаёт одну страницу.
+            Route::middleware(['api', SetLocale::class])
                 ->group(__DIR__.'/../routes/api.php');
         },
     )

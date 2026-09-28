@@ -36,7 +36,7 @@ class LabelPresetController extends Controller
 
     public function put(UpdateLabelPresetRequest $request, LabelPreset $model): LabelPresetResource
     {
-        abort_if($model->is_system, 403, 'Системный шаблон нельзя изменять');
+        abort_if($model->is_system, 403, __('Системный шаблон нельзя изменять'));
 
         $model->update($request->validated());
 
@@ -45,7 +45,7 @@ class LabelPresetController extends Controller
 
     public function delete(LabelPreset $model): JsonResponse
     {
-        abort_if($model->is_system, 403, 'Системный шаблон нельзя удалить');
+        abort_if($model->is_system, 403, __('Системный шаблон нельзя удалить'));
 
         // Списки этикеток шаблон переживают: удаление мягкое, и у них
         // пропадает только ссылка на шаблон (label_list.label_preset_id

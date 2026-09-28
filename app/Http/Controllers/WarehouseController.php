@@ -45,7 +45,7 @@ class WarehouseController extends Controller
      */
     public function contents(Warehouse $model, StorageContentsService $contents): JsonResponse
     {
-        abort_unless(app(AccessService::class)->canEdit($model), 403, 'Недостаточно прав для просмотра склада');
+        abort_unless(app(AccessService::class)->canEdit($model), 403, __('Недостаточно прав для просмотра склада'));
 
         return response()->json(['data' => $contents->treeForWarehouse($model)]);
     }
@@ -61,7 +61,7 @@ class WarehouseController extends Controller
 
     public function put(UpdateWarehouseRequest $request, Warehouse $model): WarehouseResource
     {
-        abort_unless(app(AccessService::class)->canEdit($model), 403, 'Недостаточно прав для редактирования склада');
+        abort_unless(app(AccessService::class)->canEdit($model), 403, __('Недостаточно прав для редактирования склада'));
 
         $model->update($request->validated());
 
@@ -70,7 +70,7 @@ class WarehouseController extends Controller
 
     public function delete(Warehouse $model): JsonResponse
     {
-        abort_unless(app(AccessService::class)->canDelete($model), 403, 'Недостаточно прав для удаления склада');
+        abort_unless(app(AccessService::class)->canDelete($model), 403, __('Недостаточно прав для удаления склада'));
 
         $model->delete();
 

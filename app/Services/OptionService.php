@@ -59,7 +59,7 @@ class OptionService
         // «пользователь без настроек», а программную ошибку: писать строку с
         // пустым user_id нельзя (колонка NOT NULL), и падать на этом в базе
         // нечего хорошего.
-        abort_if($userId === null, 403, 'Нет текущего пользователя');
+        abort_if($userId === null, 403, __('Нет текущего пользователя'));
 
         $option = Option::query()->updateOrCreate(
             ['user_id' => $userId],
@@ -67,6 +67,9 @@ class OptionService
                 'menu_order'      => $this->keyList($data['menu_order'] ?? []),
                 'menu_hidden'     => $this->keyList($data['menu_hidden'] ?? []),
                 'operation_mode'  => $data['operation_mode'] ?? Option::MODE_SEARCH,
+                'locale'          => in_array($data['locale'] ?? null, Option::locales(), true)
+                    ? $data['locale']
+                    : Option::LOCALE_RU,
                 'show_code_block' => (bool) ($data['show_code_block'] ?? true),
                 'remember_operation_mode' => (bool) ($data['remember_operation_mode'] ?? true),
             ]
@@ -86,6 +89,7 @@ class OptionService
             'menu_order'      => [],
             'menu_hidden'     => [],
             'operation_mode'  => Option::MODE_SEARCH,
+            'locale'          => Option::LOCALE_RU,
             'show_code_block' => true,
             'remember_operation_mode' => true,
         ];
@@ -102,6 +106,9 @@ class OptionService
             'menu_order'      => $this->keyList($option->menu_order ?? []),
             'menu_hidden'     => $this->keyList($option->menu_hidden ?? []),
             'operation_mode'  => $option->operation_mode ?: Option::MODE_SEARCH,
+            'locale'          => in_array($option->locale, Option::locales(), true)
+                ? $option->locale
+                : Option::LOCALE_RU,
             'show_code_block' => (bool) $option->show_code_block,
             'remember_operation_mode' => (bool) $option->remember_operation_mode,
         ];

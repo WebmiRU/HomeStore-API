@@ -57,9 +57,9 @@ class UpdatePropertyRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'unit_id.prohibited'       => 'Единица измерения бывает только у числового свойства',
-            'dictionary_id.prohibited' => 'Справочник бывает только у свойства типа «Из справочника»',
-            'dictionary_id.required'   => 'Выберите справочник для свойства типа «Из справочника»',
+            'unit_id.prohibited'       => __('Единица измерения бывает только у числового свойства'),
+            'dictionary_id.prohibited' => __('Справочник бывает только у свойства типа «Из справочника»'),
+            'dictionary_id.required'   => __('Выберите справочник для свойства типа «Из справочника»'),
         ];
     }
 

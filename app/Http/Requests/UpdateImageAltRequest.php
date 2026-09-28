@@ -21,8 +21,8 @@ class UpdateImageAltRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'alt.string' => 'Текст alt должен быть строкой',
-            'alt.max'    => 'Текст alt не должен быть длиннее 255 символов',
+            'alt.string' => __('Текст alt должен быть строкой'),
+            'alt.max'    => __('Текст alt не должен быть длиннее 255 символов'),
         ];
     }
 }

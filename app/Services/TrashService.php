@@ -240,7 +240,7 @@ class TrashService
      */
     public function purge(string $section, array $ids): array
     {
-        abort_unless($this->purgeAllowed($section), 403, 'Эти записи нельзя удалить окончательно');
+        abort_unless($this->purgeAllowed($section), 403, __('Эти записи нельзя удалить окончательно'));
 
         /** @var Model $model */
         $model = $this->modelFor($section);

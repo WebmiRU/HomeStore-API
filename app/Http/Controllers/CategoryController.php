@@ -101,7 +101,7 @@ class CategoryController extends Controller
             return;
         }
 
-        abort_if($parentId === $model->id, 422, 'Категория не может быть родителем самой себя');
+        abort_if($parentId === $model->id, 422, __('Категория не может быть родителем самой себя'));
 
         abort_if(
             in_array($parentId, $model->descendantIds(), true),

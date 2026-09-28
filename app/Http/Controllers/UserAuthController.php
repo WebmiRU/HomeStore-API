@@ -27,7 +27,7 @@ class UserAuthController extends Controller
 
         if (! $user || ! $user->verifyPassword($credentials['password'])) {
             throw ValidationException::withMessages([
-                'email' => ['Неверный e-mail или пароль'],
+                'email' => [__('Неверный e-mail или пароль')],
             ]);
         }
 

@@ -28,8 +28,8 @@ class TrashActionRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'ids.required' => 'Не выбрано ни одной записи',
-            'ids.max'      => 'За раз можно выбрать не больше 200 записей',
+            'ids.required' => __('Не выбрано ни одной записи'),
+            'ids.max'      => __('За раз можно выбрать не больше 200 записей'),
         ];
     }
 }

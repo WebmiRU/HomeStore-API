@@ -59,7 +59,7 @@ class AuditLogController extends Controller
         $parts = array_values(array_unique(array_map('trim', explode(',', (string) $validated['group_by']))));
         sort($parts);
 
-        abort_if($parts === [], 422, 'group_by не может быть пустым');
+        abort_if($parts === [], 422, __('group_by не может быть пустым'));
 
         foreach ($parts as $part) {
             abort_unless(in_array($part, ['action', 'entity', 'day'], true), 422, "Неизвестная группировка: {$part}");
@@ -68,7 +68,7 @@ class AuditLogController extends Controller
         abort_if(
             in_array('action', $parts, true) && in_array('entity', $parts, true),
             422,
-            'Нельзя группировать одновременно по действиям и по объектам'
+            __('Нельзя группировать одновременно по действиям и по объектам')
         );
 
         $byDay = in_array('day', $parts, true);

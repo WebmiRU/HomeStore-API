@@ -21,8 +21,8 @@ class StoreBlankLabelListRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'label_preset_id.required' => 'Не указан шаблон этикеток',
-            'label_preset_id.exists'   => 'Шаблон этикеток не найден',
+            'label_preset_id.required' => __('Не указан шаблон этикеток'),
+            'label_preset_id.exists'   => __('Шаблон этикеток не найден'),
         ];
     }
 }

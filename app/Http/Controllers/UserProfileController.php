@@ -53,7 +53,7 @@ class UserProfileController extends Controller
     public function updateAvatar(UpdateUserAvatarRequest $request, UserProfile $model): UserProfileResource
     {
         if (CurrentUser::id() !== $model->id) {
-            abort(403, 'Можно изменить только свой аватар');
+            abort(403, __('Можно изменить только свой аватар'));
         }
 
         $image = Image::fromUploadedFile($request->file('file'));

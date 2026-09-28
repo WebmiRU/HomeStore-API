@@ -26,8 +26,8 @@ class OrphanedCodesRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'older_than_days.integer' => 'Число дней должно быть целым',
-            'older_than_days.min'      => 'Число дней не может быть отрицательным',
+            'older_than_days.integer' => __('Число дней должно быть целым'),
+            'older_than_days.min'      => __('Число дней не может быть отрицательным'),
         ];
     }
 

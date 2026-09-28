@@ -50,7 +50,7 @@ class StoreController extends Controller
      */
     public function contents(Store $model, StorageContentsService $contents): JsonResponse
     {
-        abort_unless(app(AccessService::class)->canView($model), 403, 'Недостаточно прав для просмотра хранилища');
+        abort_unless(app(AccessService::class)->canView($model), 403, __('Недостаточно прав для просмотра хранилища'));
 
         return response()->json(['data' => $contents->treeForStore($model)]);
     }
@@ -63,7 +63,7 @@ class StoreController extends Controller
      */
     public function contentsItems(Store $model, StorageContentsService $contents): JsonResponse
     {
-        abort_unless(app(AccessService::class)->canView($model), 403, 'Недостаточно прав для просмотра хранилища');
+        abort_unless(app(AccessService::class)->canView($model), 403, __('Недостаточно прав для просмотра хранилища'));
 
         return response()->json(['data' => $contents->allItemsOf($model)]);
     }
@@ -72,7 +72,7 @@ class StoreController extends Controller
     {
         $data = $request->validated();
 
-        abort_unless($this->canCreateStore($data), 403, 'Нет права на создание в этом складе');
+        abort_unless($this->canCreateStore($data), 403, __('Нет права на создание в этом складе'));
 
         $store = DB::transaction(function () use ($data) {
             $code = isset($data['code']) ? trim((string) $data['code']) : '';
@@ -157,13 +157,13 @@ class StoreController extends Controller
         if ($existing) {
             if ($existing->store_id !== null && $existing->store_id !== $store->id) {
                 throw ValidationException::withMessages([
-                    'code' => ['Код уже привязан к другому хранилищу'],
+                    'code' => [__('Код уже привязан к другому хранилищу')],
                 ]);
             }
 
             if ($existing->item_id !== null) {
                 throw ValidationException::withMessages([
-                    'code' => ['Код уже привязан к предмету'],
+                    'code' => [__('Код уже привязан к предмету')],
                 ]);
             }
 

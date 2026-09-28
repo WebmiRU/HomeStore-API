@@ -26,10 +26,10 @@ class StoreVendorLogoRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'file.required' => 'Не выбран файл логотипа',
-            'file.image'    => 'Файл не является изображением',
-            'file.mimes'    => 'Разрешены форматы: PNG, JPEG, WEBP, AVIF',
-            'file.max'      => 'Размер файла не должен превышать 5 МБ',
+            'file.required' => __('Не выбран файл логотипа'),
+            'file.image'    => __('Файл не является изображением'),
+            'file.mimes'    => __('Разрешены форматы: PNG, JPEG, WEBP, AVIF'),
+            'file.max'      => __('Размер файла не должен превышать 5 МБ'),
         ];
     }
 }

@@ -171,7 +171,7 @@ class LabelListController extends Controller
         // получал этикетки не того размера и не с тем шрифтом.
         if ($labelList->label_preset_id === null) {
             return response()->json([
-                'error' => 'У списка этикеток нет шаблона — назначьте шаблон и повторите',
+                'error' => __('У списка этикеток нет шаблона — назначьте шаблон и повторите'),
             ], 422);
         }
 

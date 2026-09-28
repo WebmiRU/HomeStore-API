@@ -74,7 +74,7 @@ class ItemController extends Controller
     {
         $data = $request->validated();
 
-        abort_unless($this->canCreateItem($data), 403, 'Нет права на создание в этом складе');
+        abort_unless($this->canCreateItem($data), 403, __('Нет права на создание в этом складе'));
 
         $item = DB::transaction(function () use ($data) {
             $codes = $this->normalizeCodes($data);
@@ -255,7 +255,7 @@ class ItemController extends Controller
             // такого кода должен приводить к хранилищу, а не к предмету.
             if (Code::where('code', $code)->whereNotNull('store_id')->exists()) {
                 throw ValidationException::withMessages([
-                    "codes.{$index}" => ['Код уже привязан к хранилищу'],
+                    "codes.{$index}" => [__('Код уже привязан к хранилищу')],
                 ]);
             }
         }

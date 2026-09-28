@@ -67,7 +67,7 @@ class StockOperationService
     {
         if ($original->isReversal()) {
             throw ValidationException::withMessages([
-                'operation' => ['Откат является возвратом — откатывать его нельзя'],
+                'operation' => [__('Откат является возвратом — откатывать его нельзя')],
             ]);
         }
 
@@ -141,7 +141,7 @@ class StockOperationService
 
         if ($prepared === []) {
             throw ValidationException::withMessages([
-                'operation' => ['Не выбрано ни одной строки для возврата'],
+                'operation' => [__('Не выбрано ни одной строки для возврата')],
             ]);
         }
 

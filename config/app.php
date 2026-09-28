@@ -78,9 +78,12 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // Русский — источник правды: строки API написаны по-русски и служат
+    // ключами перевода, см. lang/en.json. Файла ru.json нет и не нужно: без
+    // перевода ключ отдаётся сам себе.
+    'locale' => env('APP_LOCALE', 'ru'),
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'ru'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
