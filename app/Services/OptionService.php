@@ -82,6 +82,15 @@ class OptionService
                 'remember_operation_mode' => array_key_exists('remember_operation_mode', $data)
                     ? (bool) $data['remember_operation_mode']
                     : $current['remember_operation_mode'],
+                // Тема и акцент проверяются здесь, а не только правилами
+                // запроса: сюда попадает и то, что лежит в базе после правки
+                // руками.
+                'theme'          => in_array($data['theme'] ?? null, Option::themes(), true)
+                    ? $data['theme']
+                    : $current['theme'],
+                'accent'         => in_array($data['accent'] ?? null, Option::accents(), true)
+                    ? $data['accent']
+                    : $current['accent'],
             ]
         );
 
@@ -102,6 +111,8 @@ class OptionService
             'locale'          => Option::LOCALE_RU,
             'show_code_block' => true,
             'remember_operation_mode' => true,
+            'theme'          => Option::THEME_DARK,
+            'accent'         => Option::ACCENT_GREEN,
         ];
     }
 
@@ -121,6 +132,12 @@ class OptionService
                 : Option::LOCALE_RU,
             'show_code_block' => (bool) $option->show_code_block,
             'remember_operation_mode' => (bool) $option->remember_operation_mode,
+            'theme'          => in_array($option->theme, Option::themes(), true)
+                ? $option->theme
+                : Option::THEME_DARK,
+            'accent'         => in_array($option->accent, Option::accents(), true)
+                ? $option->accent
+                : Option::ACCENT_GREEN,
         ];
     }
 

@@ -25,6 +25,8 @@ class Option extends Model
         'locale',
         'show_code_block',
         'remember_operation_mode',
+        'theme',
+        'accent',
     ];
 
     protected $casts = [
@@ -50,6 +52,52 @@ class Option extends Model
     public static function locales(): array
     {
         return [self::LOCALE_RU, self::LOCALE_EN];
+    }
+
+    /** Тёмная тема: та, какой интерфейс был до появления переключателя. */
+    public const THEME_DARK = 'dark';
+
+    /** Светлая тема. */
+    public const THEME_LIGHT = 'light';
+
+    /**
+     * Тема как в системе: берётся из prefers-color-scheme.
+     *
+     * Отдельным значением, а не пустым: по настройке видно, что человек
+     * выбрал «как в системе», иначе пустое поле читалось бы как «не выбрано».
+     */
+    public const THEME_SYSTEM = 'system';
+
+    /** @return array<int, string> */
+    public static function themes(): array
+    {
+        return [self::THEME_DARK, self::THEME_LIGHT, self::THEME_SYSTEM];
+    }
+
+    /** Акцентный цвет: зелёный, тот, что был в интерфейсе до переключателя. */
+    public const ACCENT_GREEN = 'green';
+
+    /** Пурпурный. */
+    public const ACCENT_PURPLE = 'purple';
+
+    /** Синий. */
+    public const ACCENT_BLUE = 'blue';
+
+    /** Янтарный. */
+    public const ACCENT_AMBER = 'amber';
+
+    /**
+     * Акцентные цвета.
+     *
+     * Список знает только фронт: он же рисует образцы цвета в настройках и
+     * переключает тему в разметке. Серверу достаточно проверить, что значение
+     * из списка, — какой оттенок означает какое слово, он не решает.
+     *
+     * @return array<int, string>
+     */
+    public static function accents(): array
+    {
+        return [self::ACCENT_GREEN, self::ACCENT_PURPLE, self::ACCENT_BLUE, self::ACCENT_AMBER];
     }
 
     public function user()

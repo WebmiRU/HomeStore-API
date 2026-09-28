@@ -42,6 +42,10 @@ class UpdateOptionRequest extends FormRequest
             // сохранённой, но не менялась.
             'locale'          => ['sometimes', 'string', Rule::in(Option::locales())],
 
+            'theme'           => ['sometimes', 'string', Rule::in(Option::themes())],
+
+            'accent'          => ['sometimes', 'string', Rule::in(Option::accents())],
+
             'show_code_block' => ['sometimes', 'boolean'],
 
             'remember_operation_mode' => ['sometimes', 'boolean'],
@@ -64,6 +68,8 @@ class UpdateOptionRequest extends FormRequest
             'operation_mode.in'   => __('Режим работы может быть только «Поиск», «Пополнение» или «Списание».'),
             'show_code_block.boolean' => __('Показывать блок «Код» — да или нет.'),
             'remember_operation_mode.boolean' => __('Запоминать режим работы — да или нет.'),
+            'theme.in'          => __('Тема может быть только «Тёмная», «Светлая» или «Как в системе».'),
+            'accent.in'         => __('Акцент может быть только «Зелёный», «Пурпурный», «Синий» или «Янтарный».'),
         ];
     }
 }
