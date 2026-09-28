@@ -37,6 +37,11 @@ class UpdateOptionRequest extends FormRequest
                 Option::MODE_WRITEOFF,
             ])],
 
+            // Правило для locale обязательно: без него validated() отбрасывал
+            // поле, и язык молча оставался прежним — настройка выглядела
+            // сохранённой, но не менялась.
+            'locale'          => ['sometimes', 'string', Rule::in(Option::locales())],
+
             'show_code_block' => ['sometimes', 'boolean'],
 
             'remember_operation_mode' => ['sometimes', 'boolean'],

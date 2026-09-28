@@ -23,16 +23,20 @@ enum PropertyType: string
 
     /**
      * Подпись типа в интерфейсе.
+     *
+     * Строка отдаётся в ответе API, поэтому переводится здесь: клиент
+     * показывает её как есть, и по-русски она осталась бы в английском
+     * интерфейсе.
      */
     public function label(): string
     {
-        return match ($this) {
+        return __(match ($this) {
             self::String => 'Текст',
             self::Int => 'Целое число',
             self::Float => 'Дробное число',
             self::Bool => 'Да/Нет',
             self::Dictionary => 'Из справочника',
-        };
+        });
     }
 
     /**

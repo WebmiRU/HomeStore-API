@@ -54,5 +54,10 @@
     "Число дней должно быть целым": "The number of days must be a whole number",
     "Число дней не может быть отрицательным": "The number of days cannot be negative",
     "Шаблон этикеток не найден": "Label template not found",
-    "Эти записи нельзя удалить окончательно": "These entries cannot be deleted for good"
+    "Эти записи нельзя удалить окончательно": "These entries cannot be deleted for good",
+    "Текст": "Text",
+    "Целое число": "Whole number",
+    "Дробное число": "Fractional number",
+    "Да/Нет": "Yes/No",
+    "Из справочника": "From a dictionary"
 }

@@ -61,17 +61,27 @@ class OptionService
         // нечего хорошего.
         abort_if($userId === null, 403, __('Нет текущего пользователя'));
 
+        // Основа слияния — текущие значения, а не умолчания: правила запроса
+        // помечают поля как sometimes, то есть запрос может прийти частичным.
+        // При основании из умолчаний частичное сохранение молча возвращало бы
+        // остальные настройки к исходным: поменял язык — потерял порядок меню.
+        $current = $this->forCurrentUser();
+
         $option = Option::query()->updateOrCreate(
             ['user_id' => $userId],
             [
-                'menu_order'      => $this->keyList($data['menu_order'] ?? []),
-                'menu_hidden'     => $this->keyList($data['menu_hidden'] ?? []),
-                'operation_mode'  => $data['operation_mode'] ?? Option::MODE_SEARCH,
+                'menu_order'      => $this->keyList($data['menu_order'] ?? $current['menu_order']),
+                'menu_hidden'     => $this->keyList($data['menu_hidden'] ?? $current['menu_hidden']),
+                'operation_mode'  => $data['operation_mode'] ?? $current['operation_mode'],
                 'locale'          => in_array($data['locale'] ?? null, Option::locales(), true)
                     ? $data['locale']
-                    : Option::LOCALE_RU,
-                'show_code_block' => (bool) ($data['show_code_block'] ?? true),
-                'remember_operation_mode' => (bool) ($data['remember_operation_mode'] ?? true),
+                    : $current['locale'],
+                'show_code_block' => array_key_exists('show_code_block', $data)
+                    ? (bool) $data['show_code_block']
+                    : $current['show_code_block'],
+                'remember_operation_mode' => array_key_exists('remember_operation_mode', $data)
+                    ? (bool) $data['remember_operation_mode']
+                    : $current['remember_operation_mode'],
             ]
         );
 
