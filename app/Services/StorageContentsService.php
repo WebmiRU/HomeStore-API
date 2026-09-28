@@ -62,6 +62,14 @@ class StorageContentsService
      */
     public function treeForWarehouse(Warehouse $warehouse): array
     {
+        // Картинка самого склада. Раньше узел склада отдавался с пустым
+        // image, и в дереве у него стояла заглушка, хотя картинка у склада
+        // есть — она видна в списке складов и во вкладке «Изображения».
+        // Порядок задаёт вес в связке, как и у хранилищ.
+        $warehouse->loadMissing([
+            'images' => fn ($query) => $query->orderBy('image_m2m_warehouse.weight')->orderBy('image_id'),
+        ]);
+
         $topIds = Store::query()
             ->where('warehouse_id', $warehouse->id)
             ->orderBy('id')
@@ -99,7 +107,8 @@ class StorageContentsService
             'kind'          => 'warehouse',
             'deleted'       => $warehouse->trashed(),
             // Предметов у самого склада нет: они лежат в хранилищах.
-            'image'         => null,
+            // А картинка есть, и в дереве она рисуется наравне с хранилищами.
+            'image'         => $this->imageNode($warehouse->images->first()),
             'items_count'   => 0,
             'items'         => [],
             'items_hidden'  => 0,
@@ -319,6 +328,11 @@ class StorageContentsService
      * Картинка в том же виде, что у остальных списков: миниатюра строится по
      * sha256, а url нужен запасным вариантом, если её ещё нет.
      *
+     * Размеры и пределы — тоже: без них клиент не знает, до какой ступени
+     * лестницы можно дойти, и просит миниатюру крупнее оригинала, а сервер
+     * отдаёт файл во весь исходный размер. Картинка выглядит нормально,
+     * но качается лишнее.
+     *
      * @return array<string, mixed>|null
      */
     private function imageNode(mixed $image): ?array
@@ -334,6 +348,9 @@ class StorageContentsService
             'alt'           => $image->pivot?->alt,
             'original_name' => $image->original_name,
             'mime'          => $image->mime,
+            'width'         => $image->width,
+            'height'        => $image->height,
+            'thumbs'        => $image->thumbLimits(),
         ];
     }
 
