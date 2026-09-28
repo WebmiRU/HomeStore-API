@@ -12,6 +12,7 @@ use App\Http\Controllers\LabelListController;
 use App\Http\Controllers\LabelPresetController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\OperationController;
+use App\Http\Controllers\OptionController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyGroupController;
 use App\Http\Controllers\SearchController;
@@ -103,6 +104,14 @@ Route::prefix('trash')->controller(TrashController::class)->group(function (): v
     Route::get('{section}', 'index');
     Route::post('{section}/restore', 'restore');
     Route::post('{section}/purge', 'purge');
+});
+
+// Настройки пользователя. Без id в адресе: настроек у человека ровно одна
+// строка, и чужие ему не полагаются. GET отдаёт полный набор — с умолчаниями,
+// даже если человек ничего не сохранял.
+Route::prefix('option')->controller(OptionController::class)->group(function (): void {
+    Route::get('/', 'show');
+    Route::put('/', 'update');
 });
 
 Route::prefix('property')->controller(PropertyController::class)->group(function (): void {

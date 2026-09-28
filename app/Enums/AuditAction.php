@@ -87,6 +87,8 @@ enum AuditAction: string
 
     case LabelGenerate = 'label.generate';
 
+    case OptionUpdated = 'option.updated';
+
     case AuthLogin = 'auth.login';
     case AuthLogout = 'auth.logout';
 }
