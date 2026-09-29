@@ -65,11 +65,44 @@ class PropertyTypeTest extends TestCase
 
     public function test_text_survives_a_change_to_a_numeric_type_when_it_is_a_number(): void
     {
-        // Ровно тот случай, ради которого смена типа вообще возможна: в
-        // текстовом свойстве набрали «10», и после смены на целое это то же
-        // самое число в каноничной записи.
+        // В текстовом свойстве набрали «10», и после смены на целое это то
+        // же самое число в каноничной записи.
         $this->assertSame('10', PropertyType::Int->normalize('10'));
         $this->assertSame('10', PropertyType::Float->normalize('10'));
+    }
+
+    /**
+     * Правила разбора должны совпадать с generated-колонками value_int,
+     * value_float и value_bool в таблице item_property.
+     *
+     * Иначе одно и то же значение читалось бы в форме и в отчётах по-разному,
+     * и заметить это можно было бы только глазами. Разбор в SQL проверить
+     * можно только на живой базе, поэтому здесь зафиксированы сами правила,
+     * а сверка с колонками описана в docblock миграции
+     * 2026_09_29_060000_typed_value_columns_on_item_property.
+     */
+    public function test_sql_generated_columns_follow_the_same_rules(): void
+    {
+        // Целое: приводится и отбрасывается то, что целым не является.
+        $this->assertSame('7', PropertyType::Int->normalize('007'));
+        // Дробное принимает и запятую, и точку.
+        $this->assertSame('1.5', PropertyType::Float->normalize('1,50'));
+        // Нечисловой текст не превращается в ноль: приведение отвергает его,
+        // и колонка value_int для такого значения остаётся пустой.
+        $this->assertThrowsOn('Самая прочная', PropertyType::Int);
+        // «Да/нет» читается терпимо, одинаково в обоих местах.
+        $this->assertSame('да', PropertyType::Bool->normalize('ON'));
+        $this->assertSame('нет', PropertyType::Bool->normalize('Нет'));
+    }
+
+    private function assertThrowsOn(string $value, PropertyType $type): void
+    {
+        try {
+            $type->normalize($value);
+            $this->fail(sprintf('«%s» не должно приниматься типом %s', $value, $type->value));
+        } catch (InvalidArgumentException) {
+            $this->assertTrue(true);
+        }
     }
 
     public function test_number_survives_a_change_back_to_text(): void
@@ -98,8 +131,8 @@ class PropertyTypeTest extends TestCase
 
     public function test_empty_value_is_refused_by_every_type(): void
     {
-        // Пустое значение пересчитывать нечего, и новый тип не требует его
-        // заполнять: такие строки смена типа пропускает, а не отвергает.
+        // Пустое значение приводить нечего, и новый тип не требует его
+        // заполнять: такую строку при записи просто не сохраняют.
         foreach (PropertyType::cases() as $type) {
             try {
                 $type->normalize('   ');

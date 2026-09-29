@@ -24,7 +24,12 @@ class ItemPropertyResource extends JsonResource
                     'title_full'  => $this->property->unit->title_full,
                 ],
             ]),
-            'value'               => $this->value,
+            // value отдаётся в виде, пригодном для типа свойства: колонки
+            // value_int, value_float, value_bool и value_text считает сама
+            // база, и читается та, что соответствует типу. Поэтому клиенту
+            // не нужно знать про разбор значения, а смена типа у свойства
+            // меняет только то, какая колонка читается.
+            'value'               => $this->typedValue(),
             'dictionary_value_id' => $this->dictionary_value_id,
             'dictionary_value'    => $this->whenLoaded('dictionaryValue', fn () => $this->dictionaryValue === null ? null : [
                 'id'    => $this->dictionaryValue->id,

@@ -7,7 +7,6 @@ use App\Http\Requests\UpdatePropertyRequest;
 use App\Enums\PropertyType;
 use App\Http\Resources\PropertyResource;
 use App\Models\Property;
-use App\Services\PropertyTypeChange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 
@@ -52,20 +51,36 @@ class PropertyController extends Controller
     }
 
     /**
-     * Смена типа идёт вместе со значениями предметов: тип решает, как читать
-     * текст, поэтому значения пересчитываются под новый вид, а не остаются
-     * как были. Пересчитывает PropertyTypeChange, и если хоть одно значение в
-     * новый тип не помещается, отказывает с объяснением, ничего не меняя.
+     * Смена типа у заполненного свойства ничего не пересчитывает.
+     *
+     * Значения у предметов лежат исходным вводом в одной колонке, а
+     * приведённые по типам считают generated-колонки item_property: целое в
+     * value_int, дробное в value_float, «да/нет» в value_bool, текст в
+     * value_text. Тип решает только то, какая из них читается, поэтому
+     * смена типа — это смена type, а значения остаются как введены.
+     *
+     * Единица и справочник привязаны к типу, поэтому при смене типа
+     * привязка от прежнего типа снимается: она осталась бы в базе и мешала
+     * бы, показывая единицу у текстового свойства.
      */
-    public function put(UpdatePropertyRequest $request, Property $model, PropertyTypeChange $typeChange): PropertyResource
+    public function put(UpdatePropertyRequest $request, Property $model): PropertyResource
     {
         $data = $request->validated();
+        $typeChanged = array_key_exists('type', $data) && $data['type'] !== $model->type->value;
 
-        if (array_key_exists('type', $data) && $data['type'] !== $model->type->value) {
-            $typeChange->apply($model, PropertyType::from($data['type']));
-        } else {
-            $model->update($data);
+        if ($typeChanged) {
+            $type = PropertyType::from($data['type']);
+
+            if (! $type->usesUnit()) {
+                $data['unit_id'] = null;
+            }
+
+            if ($type !== PropertyType::Dictionary) {
+                $data['dictionary_id'] = null;
+            }
         }
+
+        $model->update($data);
 
         return new PropertyResource($model->load(['group', 'unit', 'dictionary', 'user']));
     }

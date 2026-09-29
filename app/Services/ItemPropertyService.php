@@ -139,9 +139,13 @@ class ItemPropertyService
                 // Точный дубль отбрасываем: форма шлёт по строке на значение,
                 // и повтор означал бы двойной клик по «+», а не два разных
                 // значения. Разные значения того же свойства остаются.
+                //
+                // Сверяемся по приведённому значению, а не по исходному вводу:
+                // «007» и «7» — одно и то же число, и второе значение было бы
+                // дублем, хоть и написано иначе.
                 $fingerprint = $value['dictionary_value_id'] !== null
                     ? 'd' . $value['dictionary_value_id']
-                    : 'v' . $value['value'];
+                    : 'v' . $this->normalized($property, $value['value']);
 
                 if (isset($seen[$propertyId][$fingerprint])) {
                     continue;
@@ -215,6 +219,22 @@ class ItemPropertyService
     }
 
     /**
+     * Приведённое значение — так, как его прочитает value_* нужного типа.
+     *
+     * Значение уже проверено normalize() при разборе строки, поэтому здесь
+     * приведение не падает; исключение всё же ловится, чтобы негодное
+     * значение не уронило сохранение целиком.
+     */
+    private function normalized(Property $property, string $value): string
+    {
+        try {
+            return $property->type->normalize($value);
+        } catch (\InvalidArgumentException) {
+            return $value;
+        }
+    }
+
+    /**
      * @param  array<string, string>  $errors  ключ правила => сообщение
      * @return ?array{value: ?string, dictionary_value_id: ?int}
      */
@@ -255,14 +275,19 @@ class ItemPropertyService
             return null;
         }
 
+        // Значение сохраняется в исходном виде, как его ввели: разбором по
+        // типам занимаются generated-колонки value_int, value_float,
+        // value_bool и value_text. Здесь normalize() только проверяет, что
+        // ввод осмыслен для типа свойства, — иначе пользователь узнал бы о
+        // негодном значении лишь спустя время, увидев пустое поле.
         try {
-            $value = $property->type->normalize($rawValue);
+            $property->type->normalize($rawValue);
         } catch (\InvalidArgumentException $exception) {
             $errors["{$key}.value"] = $exception->getMessage();
 
             return null;
         }
 
-        return ['value' => $value, 'dictionary_value_id' => null];
+        return ['value' => $rawValue, 'dictionary_value_id' => null];
     }
 }
