@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePropertyRequest;
 use App\Http\Requests\UpdatePropertyRequest;
+use App\Enums\PropertyType;
 use App\Http\Resources\PropertyResource;
 use App\Models\Property;
+use App\Services\PropertyTypeChange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 
@@ -49,22 +51,21 @@ class PropertyController extends Controller
             ->setStatusCode(201);
     }
 
-    public function put(UpdatePropertyRequest $request, Property $model): PropertyResource
+    /**
+     * Смена типа идёт вместе со значениями предметов: тип решает, как читать
+     * текст, поэтому значения пересчитываются под новый вид, а не остаются
+     * как были. Пересчитывает PropertyTypeChange, и если хоть одно значение в
+     * новый тип не помещается, отказывает с объяснением, ничего не меняя.
+     */
+    public function put(UpdatePropertyRequest $request, Property $model, PropertyTypeChange $typeChange): PropertyResource
     {
         $data = $request->validated();
 
         if (array_key_exists('type', $data) && $data['type'] !== $model->type->value) {
-            // Значения лежат текстом и приведены к типу при записи. Смена типа
-            // оставила бы «1,50» в свойстве, которое отныне целое, и оно
-            // перестало бы попадать в нормализованное значение.
-            abort_if(
-                $model->values()->exists(),
-                422,
-                __('Нельзя сменить тип: по свойству уже заполнены значения у предметов')
-            );
+            $typeChange->apply($model, PropertyType::from($data['type']));
+        } else {
+            $model->update($data);
         }
-
-        $model->update($data);
 
         return new PropertyResource($model->load(['group', 'unit', 'dictionary', 'user']));
     }

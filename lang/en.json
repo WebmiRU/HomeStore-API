@@ -59,5 +59,9 @@
     "Целое число": "Whole number",
     "Дробное число": "Fractional number",
     "Да/Нет": "Yes/No",
-    "Из справочника": "From a dictionary"
+    "Из справочника": "From a dictionary",
+    "Нельзя сменить тип: значения выбраны из справочника, снимите их у предметов.": "Cannot change the type: the values are picked from a dictionary, clear them on the items first",
+    "Нельзя сменить тип на «Из справочника»: сначала снимите значения у предметов.": "Cannot change the type to “From dictionary”: clear the values on the items first",
+    "Нельзя сменить тип: новый тип не подходит значениям :list": "Cannot change the type: the new type does not fit the values :list",
+    " и ещё :count": " and :count more"
 }
