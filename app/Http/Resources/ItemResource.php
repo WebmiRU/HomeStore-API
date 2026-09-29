@@ -136,6 +136,11 @@ class ItemResource extends JsonResource
                 'norm'            => $norm,
                 'remaining'       => $remaining,
                 'total'           => $partial->total($this->resource, $setting->property_id, $norm),
+                // Сколько можно списать: ровно общий остаток. Раньше здесь
+                // стояло «меньше», потому что расход шёл поштучно и упирался в
+                // текущую штуку; теперь остаток и число штук считаются от
+                // запаса, и ограничения нет — что показано, то и спишется.
+                'available'       => $partial->total($this->resource, (int) $setting->property_id, $norm),
             ];
         }
 

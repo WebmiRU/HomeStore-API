@@ -41,6 +41,7 @@ class CodeResource extends JsonResource
                 'norm'            => $norm,
                 'remaining'       => $partial->remaining($this->item, (int) $setting->property_id, $norm),
                 'total'           => $partial->total($this->item, (int) $setting->property_id, $norm),
+                'available'       => $partial->total($this->item, (int) $setting->property_id, $norm),
             ];
         }
 

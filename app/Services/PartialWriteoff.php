@@ -62,14 +62,6 @@ class PartialWriteoff
      */
     public const TOLERANCE = 0.000001;
 
-    /**
-     * Предохранитель от зацикливания.
-     *
-     * Списание идёт поштучно, и на очень большой сумме шагов будет много. Но
-     * число штук у предмета — целое и небольшое, а лишний шаг означает ошибку в
-     * расчёте, а не законный делёж. Обрываемся с ошибкой, а не крутимся вечно.
-     */
-    private const MAX_STEPS = 10000;
 
     /** Настройки расхода предмета с порядком предложения. */
     public function settings(Item $item): Collection
@@ -157,109 +149,19 @@ class PartialWriteoff
     /**
      * Списывает расход по одному свойству.
      *
-     * @param  Collection<int, ItemPartialProperty>  $settings  все настройки предмета: нужны,
-     *                                                            чтобы опустела ли штука по всем
-     *                                                            отмеченным свойствам, а не по одному
-     * @return array{quantity: int, remainders: array<int, float>, emptied: bool} остатки текущей штуки и признак того, что штука кончилась
+     * @param  Collection<int, ItemPartialProperty>  $settings
+     * @return array{quantity: int, remainders: array<int, float>, emptied: bool}
      */
     public function spend(Item $item, int $propertyId, float $amount, Collection $settings): array
     {
-        $norm = $this->requiredNorm($item, $propertyId);
-
-        if ($amount <= 0) {
-            throw new \InvalidArgumentException('Списание должно быть больше нуля');
-        }
-
-        // Пустое количество — это не ноль, а «без количества»: предмет, которого
-        // на складе одна штука и который поштучно не считают. Расходуется он
-        // как одна штука, иначе первое же частичное списание сказало бы, что
-        // расходуемого не осталось, хотя бутылка на складе есть.
-        $quantity = (int) ($item->quantity ?? 1);
-
-        if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
-                $this->subject($item) . ': расходуемого уже не осталось'
-            );
-        }
-
-        $remainders = $this->remainders($item, $settings);
-        $remainders[$propertyId] ??= $norm;
-
-        $left = $amount;
-        $steps = 0;
-
-        while ($left > self::TOLERANCE) {
-            if (++$steps > self::MAX_STEPS) {
-                throw new \InvalidArgumentException(
-                    $this->subject($item) . ': расчёт списания не сходится'
-                );
-            }
-
-            $inUnit = max(0.0, (float) $remainders[$propertyId]);
-
-            if ($inUnit > self::TOLERANCE) {
-                $take = min($left, $inUnit);
-                $remainders[$propertyId] = $this->clampToNorm($inUnit - $take, $norm);
-                $left -= $take;
-            }
-
-            if ($left <= self::TOLERANCE) {
-                break;
-            }
-
-            // Текущей штукой по этому свойству больше нечего брать, а списать
-            // осталось. Дальше расход пойдёт из следующей штуки, но перейти к
-            // ней можно только опустев текущую целиком.
-            if (! $this->unitIsSpent($remainders, $settings)) {
-                break;
-            }
-
-            $quantity -= 1;
-
-            if ($quantity <= 0) {
-                $quantity = 0;
-                $remainders = array_map(fn () => 0.0, $remainders);
-                break;
-            }
-
-            // Новая штука полна: каждое расходуемое свойство отдаёт свою норму.
-            $remainders = $this->fullUnit($item, $remainders, $norm);
-        }
-
-        // Штука могла опустеть ровно на последнем взятом остатке, и тогда цикл
-        // выше уже не заходил — а штука кончилась, предмет должен уменьшиться.
-        // Без этой проверки бутылку можно было бы списать ровно под ноль, и она
-        // осталась бы на складе навсегда.
-        if ($left <= self::TOLERANCE && $quantity > 0 && $this->unitIsSpent($remainders, $settings)) {
-            $quantity -= 1;
-            $remainders = $quantity > 0
-                ? $this->fullUnit($item, $remainders, $norm)
-                : array_map(fn () => 0.0, $remainders);
-        }
-
-        if ($left > self::TOLERANCE) {
-            $available = $this->total($item, $propertyId, $norm, (int) ($item->quantity ?? 0));
-
-            throw new \InvalidArgumentException(sprintf(
-                '%s: списать нечего — по свойству осталось %s, просят %s',
-                $this->subject($item),
-                $this->formatAmount($available),
-                $this->formatAmount($amount)
-            ));
-        }
-
-        return [
-            'quantity'   => $quantity,
-            'remainders' => $remainders,
-            'emptied'    => $quantity <= 0,
-        ];
+        return $this->apply($item, $propertyId, -$amount, $settings, true);
     }
 
     /**
      * Пополняет расход по одному свойству.
      *
      * Пополнение симметрично списанию: возвращается столько же, сколько забрали,
-     * и целые штуки появляются сами, когда остаток перешагивает через норму.
+     * и целые штуки появляются сами, когда запас перешагивает через норму.
      * Пополнение полностью списанного предмета возвращает его на склад: человек
      * принёс новую бутылку, и бутылка на месте.
      *
@@ -268,70 +170,133 @@ class PartialWriteoff
      */
     public function replenish(Item $item, int $propertyId, float $amount, Collection $settings): array
     {
+        return $this->apply($item, $propertyId, $amount, $settings, false);
+    }
+
+    /**
+     * Расход по одному свойству: списание — это расход со знаком минус,
+     * пополнение — с плюсом, арифметика одна.
+     *
+     * ## Как считается
+     *
+     * Число штук выводится из суммарного запаса, а не наоборот. Запас по
+     * свойству — сколько осталось всего, вместе со всеми целыми штуками:
+     *
+     *   запас = (штуки - 1) × норма + остаток текущей штуки
+     *
+     * Списали 1100 у двух бутылок по 1000 — запас стал 900, и по нему видно,
+     * что целых штук больше нет: одна ушла целиком, вторая неполная.
+     *
+     * Штук столько, сколько ещё держит любое из отмеченных свойств: пустой
+     * мешок — это когда нечего есть, поэтому штука живёт, пока в ней есть рис,
+     * даже если картошка давно кончилась.
+     *
+     * ## Почему не поштучно
+     *
+     * Расход, идущий по штукам («взял 1100: съел целую бутылку и 100 из
+     * следующей»), расходится с остатком: у мешка списали весь объём при живом
+     * рисе — и объём показывался равным целой следующей штуке, хотя списать его
+     * было уже нельзя. Считая от запаса, остаток и число штук всегда сходятся:
+     * сколько показано, столько и можно списать.
+     *
+     * @param  Collection<int, ItemPartialProperty>  $settings
+     * @param  bool  $isWriteoff  списание (true) или пополнение (false)
+     * @return array{quantity: int, remainders: array<int, float>, emptied: bool}
+     */
+    private function apply(
+        Item $item,
+        int $propertyId,
+        float $signed,
+        Collection $settings,
+        bool $isWriteoff,
+    ): array {
         $norm = $this->requiredNorm($item, $propertyId);
+        $amount = abs($signed);
 
         if ($amount <= 0) {
-            throw new \InvalidArgumentException('Пополнение должно быть больше нуля');
+            throw new \InvalidArgumentException(
+                $isWriteoff
+                    ? 'Списание должно быть больше нуля'
+                    : 'Пополнение должно быть больше нуля'
+            );
         }
 
         $quantity = (int) ($item->quantity ?? 1);
         $remainders = $this->remainders($item, $settings);
         $remainders[$propertyId] ??= $norm;
 
-        $left = $amount;
-        $steps = 0;
+        // Запасы всех расходуемых свойств: у изменяемого он станет другим,
+        // остальные остаются как есть.
+        $stocks = [];
 
-        while ($left > self::TOLERANCE) {
-            if (++$steps > self::MAX_STEPS) {
-                throw new \InvalidArgumentException(
-                    $this->subject($item) . ': расчёт пополнения не сходится'
-                );
-            }
-
-            if ($quantity <= 0) {
-                // Предмета не было — принесли новую штуку. Она пустая, и
-                // наполняется с нуля.
-                $quantity = 1;
-                $remainders = array_map(fn () => 0.0, $remainders);
-            }
-
-            $inUnit = min($norm, max(0.0, (float) $remainders[$propertyId]));
-            $room = $norm - $inUnit;
-
-            if ($room > self::TOLERANCE) {
-                $put = min($left, $room);
-                $remainders[$propertyId] = $this->clampToNorm($inUnit + $put, $norm);
-                $left -= $put;
-            }
-
-            if ($left <= self::TOLERANCE) {
-                break;
-            }
-
-            // Текущая штука наполнена по этому свойству, а положить осталось.
-            // Следующая штука начнёт наполняться, только если нынешняя заполнена
-            // по всем отмеченным свойствам: иначе часть её содержимого
-            // потерялась бы при переходе.
-            if (! $this->unitIsFull($item, $remainders, $settings)) {
-                break;
-            }
-
-            // Переход на следующую штуку: она пустая.
-            $quantity += 1;
-            $remainders = array_map(fn () => 0.0, $remainders);
+        foreach ($remainders as $id => $remaining) {
+            $own = $this->norm($item, (int) $id) ?? $norm;
+            $stocks[$id] = $quantity > 0
+                ? ($quantity - 1) * $own + max(0.0, (float) $remaining)
+                : 0.0;
         }
 
-        if ($left > self::TOLERANCE) {
+        $after = $stocks[$propertyId] + $signed;
+
+        if ($isWriteoff && $after < -self::TOLERANCE) {
             throw new \InvalidArgumentException(sprintf(
-                '%s: пополнить не во что — штука не заполнена по отмеченным свойствам',
-                $this->subject($item)
+                '%s: списать нечего — по свойству осталось %s, просят %s',
+                $this->subject($item),
+                $this->formatAmount(max(0.0, $stocks[$propertyId])),
+                $this->formatAmount($amount)
             ));
+        }
+
+        $stocks[$propertyId] = max(0.0, $after);
+
+        // Число штук — по отмеченным свойствам: штука держится, пока держится
+        // хоть одно из них. Неотмеченные в расчёт не входят: они расходуются,
+        // но на жизнь штуки не влияют.
+        $quantity = 0;
+        $reasons = 0;
+
+        foreach ($settings as $setting) {
+            $id = (int) $setting->property_id;
+            $own = $this->norm($item, $id);
+
+            if (! $setting->is_full_reason || $own === null || $own <= 0 || ! array_key_exists($id, $stocks)) {
+                continue;
+            }
+
+            $reasons += 1;
+            $held = (int) ceil(max(0.0, $stocks[$id]) / $own - self::TOLERANCE);
+            $quantity = max($quantity, $held);
+        }
+
+        // Отмеченных нет — штуками не управляем: остаётся то, что было.
+        if ($reasons === 0) {
+            $quantity = max(0, (int) ($item->quantity ?? 1));
+        }
+
+        $emptied = $quantity <= 0;
+
+        if ($emptied) {
+            $quantity = 0;
+            $remainders = array_map(fn () => 0.0, $remainders);
+        } else {
+            // Остаток текущей штуки выводится из запаса: всё, что сверх целых
+            // штук, осталось в той, которая расходуется. Запас может быть
+            // неполным по нескольким штукам сразу — у мешка списали объём из
+            // обеих, — и тогда та штука, что осталась, просто неполная.
+            $rebuilt = [];
+
+            foreach ($stocks as $id => $stock) {
+                $own = $this->norm($item, (int) $id) ?? $norm;
+                $rebuilt[$id] = $this->clampToNorm($stock - ($quantity - 1) * $own, $own);
+            }
+
+            $remainders = $rebuilt;
         }
 
         return [
             'quantity'   => $quantity,
             'remainders' => $remainders,
-            'emptied'    => false,
+            'emptied'    => $emptied,
         ];
     }
 
@@ -356,31 +321,11 @@ class PartialWriteoff
     }
 
     /**
-     * Новая штука полна по всем расходуемым свойствам.
-     *
-     * У каждого своя норма: у мешка картошка 1000 и рис 5, и пересчёт по чужой
-     * норме схлопнул бы картошку в 5.
-     *
-     * @param  array<int, float>  $remainders
-     * @return array<int, float>
-     */
-    private function fullUnit(Item $item, array $remainders, float $fallback): array
-    {
-        $full = [];
-
-        foreach (array_keys($remainders) as $propertyId) {
-            $full[$propertyId] = $this->norm($item, (int) $propertyId) ?? $fallback;
-        }
-
-        return $full;
-    }
-
-    /**
      * Остаток не выходит за пределы штуки.
      *
      * Больше нормы он быть не может: столько в штуке не помещается. Меньше нуля
-     * тоже: расход не выдаёт отрицательный остаток, недоеденное переходит в
-     * следующую штуку.
+     * тоже: если запаса не хватило на все штуки, значит часть штук неполная, и
+     * текущая штука просто пуста по этому свойству.
      */
     private function clampToNorm(float $remaining, float $norm): float
     {
@@ -389,68 +334,6 @@ class PartialWriteoff
         }
 
         return min($remaining, $norm);
-    }
-
-    /**
-     * Опустела ли текущая штука по всем отмеченным свойствам.
-     *
-     * Отмеченных нет — штука не кончается никогда: нечего опустошать, и
-     * предмет живёт, пока есть расход по неотмеченным.
-     *
-     * @param  array<int, float>  $remainders
-     * @param  Collection<int, ItemPartialProperty>  $settings
-     */
-    private function unitIsSpent(array $remainders, Collection $settings): bool
-    {
-        $reasons = $settings->where('is_full_reason', true);
-
-        if ($reasons->isEmpty()) {
-            return false;
-        }
-
-        foreach ($reasons as $setting) {
-            $remaining = $remainders[(int) $setting->property_id] ?? null;
-
-            if ($remaining === null || $remaining > self::TOLERANCE) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Заполнена ли текущая штука по всем отмеченным свойствам.
-     *
-     * Сравнивать надо с нормой каждого свойства: остаток в 5 у нормы 5 — это
-     * полная штука, а остаток в 5 у нормы 1000 — пустая.
-     *
-     * @param  array<int, float>  $remainders
-     * @param  Collection<int, ItemPartialProperty>  $settings
-     */
-    private function unitIsFull(Item $item, array $remainders, Collection $settings): bool
-    {
-        $reasons = $settings->where('is_full_reason', true);
-
-        if ($reasons->isEmpty()) {
-            return false;
-        }
-
-        foreach ($reasons as $setting) {
-            $propertyId = (int) $setting->property_id;
-            $remaining = $remainders[$propertyId] ?? null;
-            $norm = $this->norm($item, $propertyId);
-
-            if ($remaining === null || $norm === null) {
-                return false;
-            }
-
-            if ($norm - $remaining > self::TOLERANCE) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**
