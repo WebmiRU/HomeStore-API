@@ -23,8 +23,12 @@ class UpdateItemRequest extends FormRequest
             'store_id'    => ['nullable', 'integer', 'exists:store,id'],
             'quantity'    => ['sometimes', 'nullable', 'integer'],
 
+            // Пометка «списывать по коду»: код, по которому списали,
+            // высвобождается и может быть наклеен на другую вещь.
+            'release_code_on_writeoff' => ['sometimes', 'boolean'],
+
             // Кодов у предмета может быть несколько, см. StoreItemRequest.
-            'codes'       => ['sometimes', 'nullable', 'array', 'max:20'],
+            'codes'       => ['sometimes', 'nullable', 'array', 'max:100'],
             'codes.*'     => ['nullable', 'string', 'min:8', 'max:256'],
 
             // Прежнее имя одного кода, оставлено для совместимости.

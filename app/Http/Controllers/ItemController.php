@@ -10,6 +10,7 @@ use App\Models\Code;
 use App\Models\Item;
 use App\Models\Store;
 use App\Services\AccessService;
+use App\Services\CodedQuantity;
 use App\Services\ItemPropertyService;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,6 +35,7 @@ class ItemController extends Controller
 
     public function __construct(
         private readonly ItemPropertyService $propertyService,
+        private readonly CodedQuantity $codedQuantity,
     ) {}
 
     public function index(Request $request): ResourceCollection
@@ -81,9 +83,16 @@ class ItemController extends Controller
             $properties = $this->normalizeProperties($data);
             unset($data['code'], $data['codes'], $data['properties']);
 
+            // Количество помеченного предмета считается по кодам, а не по
+            // присланному с формы числу: клиент поле всё равно отправляет.
+            if ($data['release_code_on_writeoff'] ?? false) {
+                unset($data['quantity']);
+            }
+
             $item = Item::create($data);
 
             $this->syncCodes($item, $codes ?? []);
+            $this->codedQuantity->refreshAfterSync($item, $codes ?? []);
 
             if ($properties !== null) {
                 $this->propertyService->sync($item, $properties);
@@ -107,6 +116,12 @@ class ItemController extends Controller
             $properties = $this->normalizeProperties($data);
             unset($data['code'], $data['codes'], $data['properties']);
 
+            // Количество помеченного предмета сервер считает сам по кодам.
+            // Снимаем присланное ДО update: иначе оно записалось бы в базу и
+            // осталось бы там, если бы коды в запросе не пришли вовсе и
+            // пересчёт по ним не запустился.
+            $data = $this->codedQuantity->stripQuantity($model, $data);
+
             $model->update($data);
 
             if ($properties !== null) {
@@ -114,11 +129,17 @@ class ItemController extends Controller
             }
 
             if ($codes === null) {
-                // Раздела codes в теле нет — коды не трогаем
+                // Раздела codes в теле нет — коды не трогаем. Количество у
+                // помеченного предмета всё равно сверяется с тем, что кодов
+                // у него сейчас: пометку могли только что снять, а снятая
+                // пометка означает, что количество снова вручную.
+                $this->codedQuantity->refresh($model);
+
                 return;
             }
 
             $this->syncCodes($model, $codes);
+            $this->codedQuantity->refreshAfterSync($model, $codes);
         });
 
         return new ItemResource($this->loadForAnswer($model));
@@ -246,7 +267,13 @@ class ItemController extends Controller
      */
     private function syncCodes(Item $item, array $codes): void
     {
-        if ($codes === []) {
+        if ($codes === [] && ! $item->release_code_on_writeoff) {
+            // Обычному предмету код нужен всегда: по нему печатается этикетка,
+            // он ищется сканером и открывается по нему из списка.
+            //
+            // Помеченному — нет: там код и есть единица, и ноль кодов значит
+            // ноль единиц. Сгенерированный UUID посчитали бы за наклейку,
+            // которой никто не клеил, и пустой предмет сразу стал бы непустым.
             $codes = [(string) Str::uuid7()];
         }
 

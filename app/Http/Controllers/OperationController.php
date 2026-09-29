@@ -9,7 +9,9 @@ use App\Http\Resources\StockOperationResource;
 use App\Models\Code;
 use App\Models\Item;
 use App\Services\AuditLogService;
+use App\Services\CodedQuantity;
 use App\Services\StockOperationService;
+use App\Services\WriteoffCodeRelease;
 use App\Support\CodeFormat;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +23,8 @@ class OperationController extends Controller
     public function __construct(
         private readonly AuditLogService $logs,
         private readonly StockOperationService $stock,
+        private readonly WriteoffCodeRelease $releasedCodes,
+        private readonly CodedQuantity $codedQuantity,
     ) {
     }
 
@@ -39,6 +43,16 @@ class OperationController extends Controller
             // Проход 1: проверяем ВСЕ строки и собираем все проблемы разом,
             // чтобы операция не «падала» с одним сообщением по первой же строке.
             $errors = [];
+
+            // Сколько единиц предмета уже занято строками этой же операции.
+            //
+            // Один предмет может встретиться в операции несколько раз — при
+            // списании по коду это обычное дело: отсканировали два разных
+            // кода одного товара, и это две строки. Проверять каждую строку
+            // по исходному остатку нельзя: обе видели бы «в наличии 2» и обе
+            // прошли бы, а списали бы 2 из 2 — и в журнале легли бы строки с
+            // одинаковым «было 2 → стало 1». Остаток считается на лету.
+            $taken = [];
 
             foreach ($payload as $row) {
                 [$storeMatch, $items] = $this->resolveCode($row['code']);
@@ -81,14 +95,33 @@ class OperationController extends Controller
                     continue;
                 }
 
-                $delta = (int) $row['quantity'];
+                $requested = (int) $row['quantity'];
+
+                // Списание по коду снимает ровно одну единицу: отсканированный
+                // код и означает одну упаковку. Списать больше можно,
+                // отсканировав остальные коды, — иначе снятое количество
+                // разошлось бы с числом высвобождённых кодов, и откат не смог
+                // бы их вернуть.
+                //
+                // Решает не пометка, а то, высвободится ли код на самом деле:
+                // у предмета с единственным кодом высвобождать нечего, и его
+                // количество должно уменьшаться так, как просил пользователь.
+                $releasesCode = $type === 'operation.writeoff'
+                    && $this->releasedCodes->willRelease($item, $row['code']);
+
+                $delta = $releasesCode ? 1 : $requested;
 
                 if ($type === 'operation.writeoff') {
-                    if ($item->quantity !== null && (int) $item->quantity < $delta) {
+                    // Остаток к моменту этой строки: исходный минус всё, что
+                    // операция уже забрала у того же предмета.
+                    $stock = $item->quantity === null ? 1 : (int) $item->quantity;
+                    $left = $stock - ($taken[$item->id] ?? 0);
+
+                    if ($left < $delta) {
                         $errors[] = sprintf(
                             'Недостаточно количества у предмета "%s" (в наличии %d)',
                             $item->title,
-                            (int) $item->quantity
+                            $stock
                         );
                         continue;
                     }
@@ -99,7 +132,13 @@ class OperationController extends Controller
                     }
                 }
 
-                $prepared[] = ['code' => $row['code'], 'item' => $item, 'delta' => $delta];
+                $taken[$item->id] = ($taken[$item->id] ?? 0) + $delta;
+
+                $prepared[] = [
+                    'code'      => $row['code'],
+                    'item'      => $item,
+                    'delta'     => $delta,
+                ];
             }
 
             if ($errors !== []) {
@@ -113,6 +152,22 @@ class OperationController extends Controller
                 $item = $entry['item'];
                 $delta = $entry['delta'];
                 $code = $entry['code'];
+
+                // Один предмет может встретиться в операции несколько раз —
+                // при списании по коду это обычное дело: отсканировали два
+                // кода одного товара. У каждой строки свой экземпляр модели, и
+                // без обновления обе видели бы исходный остаток: в базе
+                // списалось две единицы, а в журнале легли бы две строки
+                // «было 5 → стало 4». decrement() обновляет базу, а вот
+                // значение в модели — нет.
+                $item->refresh();
+
+                // Списание по коду: код, по которому пришла операция,
+                // высвобождается и запоминается строкой операции, чтобы
+                // откат сумел вернуть его предмету.
+                $releasedCode = $type === 'operation.writeoff'
+                    ? $this->releasedCodes->releaseFor($item, $code)
+                    : null;
 
                 if ($item->quantity === null) {
                     // Предмет без количественного учёта (единичный экземпляр):
@@ -136,6 +191,7 @@ class OperationController extends Controller
                         'before'   => $before,
                         'after'    => $after,
                         'owner_id' => $item->user_id,
+                        'released_code_id' => $releasedCode?->id,
                     ];
 
                     continue;
@@ -159,6 +215,7 @@ class OperationController extends Controller
                     'before'   => $before,
                     'after'    => $after,
                     'owner_id' => $item->user_id,
+                    'released_code_id' => $releasedCode?->id,
                 ];
             }
         });
@@ -195,7 +252,7 @@ class OperationController extends Controller
         return response()->json([
             'type'       => $type,
             'comment'    => $operation->comment,
-            'operation'  => (new StockOperationResource($operation->load('rows')))->resolve(),
+            'operation'  => (new StockOperationResource($operation->load('rows.releasedCode')))->resolve(),
             'payload'    => $payload,
             'rows'       => $appliedRows,
         ]);

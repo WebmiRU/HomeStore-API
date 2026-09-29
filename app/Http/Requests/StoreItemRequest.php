@@ -23,11 +23,15 @@ class StoreItemRequest extends FormRequest
             'store_id'    => ['nullable', 'integer', 'exists:store,id'],
             'quantity'    => ['nullable', 'integer'],
 
+            // Пометка «списывать по коду»: код, по которому списали,
+            // высвобождается и может быть наклеен на другую вещь.
+            'release_code_on_writeoff' => ['sometimes', 'boolean'],
+
             // Кодов у предмета может быть несколько: наклейка на вещь одна,
             // а код — наклейка, и на вещи их бывает больше одной. Правило на
             // сам код (код хранилища нельзя занять предмету) проверяется в
             // ItemController: там видно соседние строки code.
-            'codes'       => ['nullable', 'array', 'max:20'],
+            'codes'       => ['nullable', 'array', 'max:100'],
             'codes.*'     => ['nullable', 'string', 'min:8', 'max:256'],
 
             // Прежнее имя одного кода. Оставлено для клиентов, которые ещё

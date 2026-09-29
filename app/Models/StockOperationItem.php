@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-
 /**
  * Строка операции: один предмет и количество. Самостоятельного user_id нет —
  * строка достижима только через операцию, а видимость операции определяется
@@ -24,6 +23,7 @@ class StockOperationItem extends Model
         'reversed_quantity',
         'before',
         'after',
+        'released_code_id',
     ];
 
     protected $attributes = [
@@ -59,6 +59,12 @@ class StockOperationItem extends Model
     public function sourceRow()
     {
         return $this->belongsTo(self::class, 'source_row_id');
+    }
+
+    /** Код, высвобождённый этим списанием, если списание было по коду. */
+    public function releasedCode()
+    {
+        return $this->belongsTo(Code::class, 'released_code_id');
     }
 
     /** Сколько ещё можно вернуть по этой строке. */

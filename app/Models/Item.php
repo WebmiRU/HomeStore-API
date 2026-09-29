@@ -25,12 +25,14 @@ class Item extends Model implements ImageOwner
         'vendor_id',
         'quantity',
         'user_id',
+        'release_code_on_writeoff',
     ];
 
     protected function casts(): array
     {
         return [
-            'quantity' => 'integer',
+            'quantity'                  => 'integer',
+            'release_code_on_writeoff'  => 'boolean',
         ];
     }
 

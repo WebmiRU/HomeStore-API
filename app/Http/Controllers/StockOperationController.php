@@ -29,7 +29,7 @@ class StockOperationController extends Controller
         $perPage = min(200, max(10, (int) $request->integer('per_page', 50)));
 
         $query = StockOperation::query()
-            ->with(['author', 'rows'])
+            ->with(['author', 'rows.releasedCode'])
             ->visible()
             ->orderByDesc('stock_operation.created_at')
             ->orderByDesc('stock_operation.id');
@@ -43,7 +43,7 @@ class StockOperationController extends Controller
     public function get(Request $request, int $model): StockOperationResource
     {
         $operation = StockOperation::query()
-            ->with(['author', 'rows'])
+            ->with(['author', 'rows.releasedCode'])
             ->visible()
             ->findOrFail($model);
 
@@ -53,7 +53,7 @@ class StockOperationController extends Controller
     public function reverse(ReverseStockOperationRequest $request, int $model): StockOperationResource
     {
         $operation = StockOperation::query()
-            ->with('rows')
+            ->with('rows.releasedCode')
             ->visible()
             ->findOrFail($model);
 
@@ -110,7 +110,7 @@ class StockOperationController extends Controller
         $perPage = min(200, max(10, (int) $request->integer('per_page', 50)));
 
         $query = StockOperation::query()
-            ->with(['author', 'rows'])
+            ->with(['author', 'rows.releasedCode'])
             ->visible()
             ->whereHas('rows', fn ($rows) => $rows->where('item_id', $item))
             ->orderByDesc('stock_operation.created_at')

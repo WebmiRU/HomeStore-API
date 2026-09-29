@@ -56,6 +56,11 @@ class ItemResource extends JsonResource
                 'category_id' => $this->category_id,
                 'vendor_id'   => $this->vendor_id,
                 'quantity'    => $this->quantity,
+
+                // Пометка «списывать по коду»: при списании код, по которому
+                // сканировали, высвобождается и может быть наклеен на другую
+                // вещь. По умолчанию выключено.
+                'release_code_on_writeoff' => (bool) $this->release_code_on_writeoff,
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],

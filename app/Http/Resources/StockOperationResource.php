@@ -43,6 +43,14 @@ class StockOperationResource extends JsonResource
                 'before'           => $row->before,
                 'after'            => $row->after,
                 'is_returned'      => $row->reversed_quantity > 0,
+
+                // Код, высвобождённый списанием по коду. relationLoaded, а не
+                // whenLoaded: строки приходят элементами коллекции, и у них
+                // своего ресурса нет.
+                'released_code_id' => $row->released_code_id,
+                'released_code'    => $row->relationLoaded('releasedCode')
+                    ? $row->releasedCode?->code
+                    : null,
             ])->values(),
         ];
     }

@@ -20,6 +20,10 @@ use Illuminate\Validation\ValidationException;
  */
 class StockOperationService
 {
+    public function __construct(private readonly WriteoffCodeRelease $releasedCodes)
+    {
+    }
+
     /**
      * Сохраняет уже применённую операцию в журнал движений.
      *
@@ -27,7 +31,7 @@ class StockOperationService
      * повторное применение дельт здесь было бы второй транзакцией с теми же
      * числами — источником расхождений при частичном откате.
      *
-     * @param  array<int, array{code: string, item_id: int, title: string, delta: int, before: int, after: int, owner_id?: int|null}>  $appliedRows
+     * @param  array<int, array{code: string, item_id: int, title: string, delta: int, before: int, after: int, owner_id?: int|null, released_code_id?: int|null}>  $appliedRows
      */
     public function record(StockDirection $direction, ?string $comment, array $appliedRows): StockOperation
     {
@@ -46,6 +50,9 @@ class StockOperationService
                     'quantity'    => max(1, (int) $row['delta']),
                     'before'      => (int) $row['before'],
                     'after'       => (int) $row['after'],
+                    // Код, высвобождённый списанием по коду: по нему откат
+                    // вернёт код предмету.
+                    'released_code_id' => $row['released_code_id'] ?? null,
                 ]);
             }
 
@@ -182,6 +189,11 @@ class StockOperationService
 
                 $row->increment('reversed_quantity', $quantity);
             }
+
+            // Коды, высвобождённые списанием, возвращаются предмету: товар
+            // вернули, упаковку вскрыли, и код снова на месте. Возвращаются
+            // только коды тех строк, которые этой операцией откатываются.
+            $this->releasedCodes->restore($prepared);
 
             $original->forceFill(['reversed_at' => now()])->save();
 
