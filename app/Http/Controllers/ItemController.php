@@ -62,6 +62,13 @@ class ItemController extends Controller
             });
         }
 
+        // Фильтр по производителю. В отличие от категории, у производителя нет
+        // вложенности: один уровень, и всё, что помечено им, и есть его
+        // предметы.
+        if ($request->filled('vendor_id')) {
+            $query->where('vendor_id', $request->integer('vendor_id'));
+        }
+
         return ItemResource::collection(
             $query->orderByDesc('id')->paginate($request->integer('per_page', self::PER_PAGE))
         );
