@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Http\Resources\Concerns\MarksDeleted;
 use App\Http\Resources\ImageResource;
 use App\Models\Item;
+use App\Models\Property;
 use App\Services\AccessService;
 use App\Services\PartialWriteoff;
 use App\Support\CurrentUser;
@@ -128,6 +129,7 @@ class ItemResource extends JsonResource
 
             $rows[] = [
                 'property_id'     => $setting->property_id,
+                'property_title'  => Property::find((int) $setting->property_id)?->title,
                 'step'            => (float) $setting->step,
                 'is_full_reason'  => (bool) $setting->is_full_reason,
                 'sort'            => (int) $setting->sort,

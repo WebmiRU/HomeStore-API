@@ -25,6 +25,7 @@ class StockOperationItem extends Model
         'after',
         'released_code_id',
         'property_id',
+        'property_title',
         'amount',
         'property_before',
         'property_after',
