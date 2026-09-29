@@ -172,7 +172,13 @@ class StockOperationService
                 $quantity = (int) $entry['quantity'];
                 $item = Item::findOrFail($row->item_id);
 
-                $before = (int) ($item->quantity ?? 0);
+                // Пустое количество — это не ноль, а «без количества»: предмет,
+                // которого на складе одна штука и который поштучно не считают.
+                // Поэтому при возврате оно читается как одна штука, а не как
+                // ноль: вернуть единицу к монолиту — это уже две. Записано
+                // после этого будет число, потому что одна штука поштучно не
+                // считается.
+                $before = $item->quantity === null ? 1 : (int) $item->quantity;
                 $after = $before + $sign * $quantity;
 
                 $item->update(['quantity' => $after]);
