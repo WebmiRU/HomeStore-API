@@ -11,6 +11,7 @@ use App\Models\Item;
 use App\Models\Store;
 use App\Services\AccessService;
 use App\Services\CodedQuantity;
+use App\Services\PartialWriteoff;
 use App\Services\ItemPropertyService;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,6 +37,7 @@ class ItemController extends Controller
     public function __construct(
         private readonly ItemPropertyService $propertyService,
         private readonly CodedQuantity $codedQuantity,
+        private readonly PartialWriteoff $partialWriteoff,
     ) {}
 
     public function index(Request $request): ResourceCollection
@@ -88,7 +90,8 @@ class ItemController extends Controller
         $item = DB::transaction(function () use ($data) {
             $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
-            unset($data['code'], $data['codes'], $data['properties']);
+            $partial = $this->normalizePartialProperties($data);
+            unset($data['code'], $data['codes'], $data['properties'], $data['partial_properties']);
 
             // Количество помеченного предмета считается по кодам, а не по
             // присланному с формы числу: клиент поле всё равно отправляет.
@@ -103,6 +106,12 @@ class ItemController extends Controller
 
             if ($properties !== null) {
                 $this->propertyService->sync($item, $properties);
+            }
+
+            // Настройки расхода — после значений свойств: сверка остатков с
+            // нормой имеет смысл, когда норма уже записана.
+            if ($partial !== null) {
+                $this->partialWriteoff->syncSettings($item, $partial);
             }
 
             return $item;
@@ -121,7 +130,8 @@ class ItemController extends Controller
             $data = $request->validated();
             $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
-            unset($data['code'], $data['codes'], $data['properties']);
+            $partial = $this->normalizePartialProperties($data);
+            unset($data['code'], $data['codes'], $data['properties'], $data['partial_properties']);
 
             // Количество помеченного предмета сервер считает сам по кодам.
             // Снимаем присланное ДО update: иначе оно записалось бы в базу и
@@ -133,6 +143,10 @@ class ItemController extends Controller
 
             if ($properties !== null) {
                 $this->propertyService->sync($model, $properties);
+            }
+
+            if ($partial !== null) {
+                $this->partialWriteoff->syncSettings($model, $partial);
             }
 
             if ($codes === null) {
@@ -188,6 +202,24 @@ class ItemController extends Controller
     }
 
     /**
+     * Настройки частичного списания из тела запроса либо null, когда раздела
+     * partial_properties в теле нет вовсе.
+     *
+     * Как и у значений свойств: null — «не трогать», пустой массив — «расход
+     * частями выключить и почистить настройки».
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function normalizePartialProperties(array $data): ?array
+    {
+        if (! array_key_exists('partial_properties', $data)) {
+            return null;
+        }
+
+        return array_values((array) ($data['partial_properties'] ?? []));
+    }
+
+    /**
      * Всё, что показывает ресурс предмета, одной строкой — иначе список,
      * карточка и ответ на сохранение расходились бы по составу полей, и
      * интерфейс ловил бы «поле пропало» там, где оно просто не грузилось.
@@ -196,7 +228,7 @@ class ItemController extends Controller
      */
     private function relations(): array
     {
-        return ['code', 'codes', 'store.parent', 'category', 'vendor', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue'];
+        return ['code', 'codes', 'store.parent', 'category', 'vendor', 'images', 'user', 'propertyValues.property.unit', 'propertyValues.dictionaryValue', 'partialWriteoffProperties'];
     }
 
     private function canCreateItem(array $data): bool

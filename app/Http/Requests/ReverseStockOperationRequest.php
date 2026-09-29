@@ -18,7 +18,14 @@ class ReverseStockOperationRequest extends FormRequest
             // внутри строки. Поэтому здесь именно список, а не одна сумма.
             'rows'           => ['required', 'array', 'min:1'],
             'rows.*.row_id'  => ['required', 'integer', 'min:1'],
+
+            // У обычной строки количество возврата — целые штуки, у строки
+            // частичного расхода — доля свойства, и она дробная: вернуть
+            // 100 мл из списанных 300 законно. Поле amount шлёт клиент для
+            // таких строк, quantity остаётся для прежних и обратной
+            // совместимости.
             'rows.*.quantity' => ['required', 'integer', 'min:1'],
+            'rows.*.amount'   => ['sometimes', 'numeric', 'min:0'],
 
             'comment'        => ['nullable', 'string', 'max:1000'],
         ];

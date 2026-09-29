@@ -8,8 +8,10 @@ use App\Http\Requests\StoreOperationRequest;
 use App\Http\Resources\StockOperationResource;
 use App\Models\Code;
 use App\Models\Item;
+use App\Models\Property;
 use App\Services\AuditLogService;
 use App\Services\CodedQuantity;
+use App\Services\PartialWriteoff;
 use App\Services\StockOperationService;
 use App\Services\WriteoffCodeRelease;
 use App\Support\CodeFormat;
@@ -25,6 +27,7 @@ class OperationController extends Controller
         private readonly StockOperationService $stock,
         private readonly WriteoffCodeRelease $releasedCodes,
         private readonly CodedQuantity $codedQuantity,
+        private readonly PartialWriteoff $partialWriteoff,
     ) {
     }
 
@@ -95,7 +98,37 @@ class OperationController extends Controller
                     continue;
                 }
 
-                $requested = (int) $row['quantity'];
+                $settings = $this->partialWriteoff->settings($item);
+
+                // Предмет, который расходуется частями, штуками не списывается
+                // вовсе: количество у него меняется само, когда опустела штука,
+                // и «списать 2 штуки» значило бы списать две нормы молока.
+                // Поэтому у такой строки расход приходит по свойствам.
+                if ($settings->isNotEmpty()) {
+                    $parts = $this->normalizeParts($row, $item, $settings, $errors);
+
+                    if ($parts === null) {
+                        continue;
+                    }
+
+                    $prepared[] = [
+                        'code'  => $row['code'],
+                        'item'  => $item,
+                        'parts' => $parts,
+                    ];
+
+                    continue;
+                }
+
+                if (! empty($row['parts'])) {
+                    $errors[] = sprintf(
+                        'Предмет "%s" не расходуется частями — списание штуками',
+                        $item->title
+                    );
+                    continue;
+                }
+
+                $requested = (int) ($row['quantity'] ?? 0);
 
                 // Списание по коду снимает ровно одну единицу: отсканированный
                 // код и означает одну упаковку. Списать больше можно,
@@ -150,8 +183,20 @@ class OperationController extends Controller
             // Проход 2: применение уже проверенных строк.
             foreach ($prepared as $entry) {
                 $item = $entry['item'];
-                $delta = $entry['delta'];
                 $code = $entry['code'];
+
+                if (isset($entry['parts'])) {
+                    // Расход по свойствам: списание и пополнение идут одной
+                    // арифметикой, отличается только знак.
+                    $appliedRows = array_merge(
+                        $appliedRows,
+                        $this->applyParts($item, $entry['parts'], $type, $code)
+                    );
+
+                    continue;
+                }
+
+                $delta = $entry['delta'];
 
                 // Один предмет может встретиться в операции несколько раз —
                 // при списании по коду это обычное дело: отсканировали два
@@ -236,10 +281,20 @@ class OperationController extends Controller
                 [
                     'code'   => $appliedRow['code'],
                     'title'  => $appliedRow['title'],
+
                     // В журнале дельта знаковая: списание — отрицательная.
                     'delta'  => $appliedRow['after'] - $appliedRow['before'],
                     'before' => $appliedRow['before'],
                     'after'  => $appliedRow['after'],
+
+                    // Расход по свойству. Без него запись о списании 300 мл
+                    // выглядела бы как «было 2, стало 2»: количество штук у
+                    // бутылки не изменилось, а расход был.
+                    'property_id'     => $appliedRow['property_id'] ?? null,
+                    'property_title'  => $appliedRow['property_title'] ?? null,
+                    'amount'          => $appliedRow['amount'] ?? null,
+                    'property_before' => $appliedRow['property_before'] ?? null,
+                    'property_after'  => $appliedRow['property_after'] ?? null,
                     // Комментарий и номер операции: в журнале действий списание
                     // и пополнение остаются отдельными записями, а объяснение
                     // «куда списали» хранится один раз — в самой операции.
@@ -256,6 +311,140 @@ class OperationController extends Controller
             'payload'    => $payload,
             'rows'       => $appliedRows,
         ]);
+    }
+
+    /**
+     * Расход по свойствам строки операции: приводит к виду, который уже можно
+     * применять, либо пишет в $errors и возвращает null.
+     *
+     * Проверяется здесь, а не в контроллере запроса, три вещи, которые про
+     * формат запроса не узнать: свойство действительно расходуется у этого
+     * предмета, расход положителен, и одно свойство не указано дважды.
+     * Последнее важно для отката: две строки по одному свойству в одной
+     * операции вернулись бы двумя шагами и разъехались по остаткам.
+     *
+     * @param  \Illuminate\Support\Collection<int, ItemPartialProperty>  $settings
+     * @param  array<int, string>  $errors
+     * @return array<int, array{property_id: int, amount: float}>|null
+     */
+    private function normalizeParts(array $row, Item $item, $settings, array &$errors): ?array
+    {
+        $raw = $row['parts'] ?? null;
+
+        if (! is_array($raw) || $raw === []) {
+            $errors[] = sprintf(
+                'Предмет "%s" расходуется частями — укажите, сколько списать по каждому свойству',
+                $item->title
+            );
+
+            return null;
+        }
+
+        $known = $settings->pluck('property_id')->map(fn ($id) => (int) $id)->all();
+        $parts = [];
+        $seen = [];
+
+        foreach ($raw as $part) {
+            $propertyId = (int) ($part['property_id'] ?? 0);
+            $amount = (float) ($part['amount'] ?? 0);
+
+            if (! in_array($propertyId, $known, true)) {
+                $errors[] = sprintf(
+                    'У предмета "%s" свойство с id %d не расходуется частями',
+                    $item->title,
+                    $propertyId
+                );
+
+                return null;
+            }
+
+            if (isset($seen[$propertyId])) {
+                $errors[] = sprintf(
+                    'Свойство с id %d указано дважды — объедините расход в одну сумму',
+                    $propertyId
+                );
+
+                return null;
+            }
+
+            if ($amount <= 0) {
+                $errors[] = sprintf(
+                    'Расход по свойству с id %d должен быть больше нуля',
+                    $propertyId
+                );
+
+                return null;
+            }
+
+            $seen[$propertyId] = true;
+            $parts[] = ['property_id' => $propertyId, 'amount' => $amount];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * Применяет расход по свойствам и возвращает строки для журнала.
+     *
+     * Строк в журнале может оказаться больше, чем свойств в строке операции:
+     * кроме расхода по свойству сюда попадает целая штука, если она при этом
+     * списалась. Откат возвращает их независимо друг от друга — вернуть
+     * частичный расход, не вернув штуку, законно: бутылку могли досахать
+     * добрать и положить обратно нетронутой.
+     *
+     * @param  array<int, array{property_id: int, amount: float}>  $parts
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyParts(Item $item, array $parts, string $type, string $code): array
+    {
+        $settings = $this->partialWriteoff->settings($item);
+        $isWriteoff = $type === 'operation.writeoff';
+        $rows = [];
+
+        foreach ($parts as $part) {
+            $propertyId = (int) $part['property_id'];
+            $amount = (float) $part['amount'];
+
+            $item->refresh();
+
+            $before = (int) ($item->quantity ?? 0);
+            $norm = $this->partialWriteoff->norm($item, $propertyId);
+            $propertyBefore = $norm === null
+                ? 0.0
+                : $this->partialWriteoff->total($item, $propertyId, $norm);
+
+            $result = $isWriteoff
+                ? $this->partialWriteoff->spend($item, $propertyId, $amount, $settings)
+                : $this->partialWriteoff->replenish($item, $propertyId, $amount, $settings);
+
+            $this->partialWriteoff->persist($item, $result['remainders'], (int) $result['quantity']);
+
+            $item->refresh();
+
+            $rows[] = [
+                'code'            => $code,
+                'item_id'         => $item->id,
+                'title'           => $item->title,
+                'owner_id'        => $item->user_id,
+                'property_id'     => $propertyId,
+                'property_title'  => $this->propertyTitle($propertyId),
+                'amount'          => $amount,
+                'property_before' => $propertyBefore,
+                'property_after'  => $this->partialWriteoff->total($item, $propertyId, (float) $norm),
+                'is_writeoff'     => $isWriteoff,
+                'delta'           => (int) $item->quantity - $before,
+                'before'          => $before,
+                'after'           => (int) $item->quantity,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** Название свойства для журнала, один раз на операцию при выводе. */
+    private function propertyTitle(int $propertyId): string
+    {
+        return Property::find($propertyId)?->title ?? (string) $propertyId;
     }
 
     /**

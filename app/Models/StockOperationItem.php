@@ -24,10 +24,16 @@ class StockOperationItem extends Model
         'before',
         'after',
         'released_code_id',
+        'property_id',
+        'amount',
+        'property_before',
+        'property_after',
+        'reversed_amount',
     ];
 
     protected $attributes = [
         'reversed_quantity' => 0,
+        'reversed_amount'   => 0,
     ];
 
     protected function casts(): array
@@ -37,6 +43,10 @@ class StockOperationItem extends Model
             'reversed_quantity' => 'integer',
             'before' => 'integer',
             'after' => 'integer',
+            'amount' => 'float',
+            'property_before' => 'float',
+            'property_after' => 'float',
+            'reversed_amount' => 'float',
         ];
     }
 
@@ -67,9 +77,36 @@ class StockOperationItem extends Model
         return $this->belongsTo(Code::class, 'released_code_id');
     }
 
-    /** Сколько ещё можно вернуть по этой строке. */
-    public function remaining(): int
+    /** Связь со свойством, по которому списан расход. */
+    public function property()
     {
+        return $this->belongsTo(Property::class, 'property_id');
+    }
+
+    /**
+     * Строка частичного списания: расход по свойству, а не целые штуки.
+     *
+     * Отличается тем, что amount задан, а quantity может быть нулём: списали
+     * 300 мл из бутылки — штуки не списались, а расход по свойству был.
+     */
+    public function isPartial(): bool
+    {
+        return $this->amount !== null;
+    }
+
+    /**
+     * Сколько ещё можно вернуть по этой строке.
+     *
+     * Возврат бывает частичным и у обычной строки («вернули 4 из 10»), и у
+     * строки по свойству («вернули 100 мл из 300»), поэтому число не всегда
+     * целое. Верхняя граница своя у каждого вида строк.
+     */
+    public function remaining(): float
+    {
+        if ($this->isPartial()) {
+            return max(0.0, (float) $this->amount - (float) $this->reversed_amount);
+        }
+
         return max(0, $this->quantity - $this->reversed_quantity);
     }
 

@@ -42,7 +42,19 @@ class StockOperationResource extends JsonResource
                 'remaining'        => $row->remaining(),
                 'before'           => $row->before,
                 'after'            => $row->after,
-                'is_returned'      => $row->reversed_quantity > 0,
+                'is_returned'      => $row->reversed_quantity > 0 || $row->reversed_amount > 0,
+
+                // Строка частичного расхода: забрано не N штук, а доля
+                // свойства. Quantity у такой строки может быть нулём — штуки
+                // не ушли, ушло содержимое, — поэтому интерфейс смотрит на
+                // amount, а не на quantity.
+                'is_partial'       => $row->isPartial(),
+                'property_id'      => $row->property_id,
+                'property_title'   => $row->property_title,
+                'amount'           => $row->amount,
+                'property_before'  => $row->property_before,
+                'property_after'   => $row->property_after,
+                'reversed_amount'  => $row->reversed_amount,
 
                 // Код, высвобождённый списанием по коду. relationLoaded, а не
                 // whenLoaded: строки приходят элементами коллекции, и у них

@@ -56,6 +56,14 @@ class UpdateItemRequest extends FormRequest
             'properties.*.values.*'          => ['nullable', 'array'],
             'properties.*.values.*.value'    => ['nullable', 'string', 'max:1000'],
             'properties.*.values.*.dictionary_value_id' => ['nullable', 'integer'],
+
+            // Настройки частичного списания: какие свойства предмета
+            // расходуются частями. Тип свойства и совместимость с режимом
+            // «списывать по коду» проверяются в PartialWriteoff — это бизнес-правило,
+            // а не формат запроса, и FormRequest о нём не знает.
+            'partial_properties'               => ['sometimes', 'nullable', 'array', 'max:50'],
+            'partial_properties.*.property_id' => ['required', 'integer'],
+            'partial_properties.*.step'        => ['sometimes', 'numeric', 'min:0'],
         ];
     }
 }

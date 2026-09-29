@@ -26,6 +26,7 @@ class Item extends Model implements ImageOwner
         'quantity',
         'user_id',
         'release_code_on_writeoff',
+        'partial_writeoff',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class Item extends Model implements ImageOwner
         return [
             'quantity'                  => 'integer',
             'release_code_on_writeoff'  => 'boolean',
+            'partial_writeoff'          => 'boolean',
         ];
     }
 
@@ -98,6 +100,24 @@ class Item extends Model implements ImageOwner
         return $this->hasMany(ItemProperty::class, 'item_id')
             ->orderBy('item_property.property_id')
             ->orderBy('item_property.sort');
+    }
+
+    /**
+     * Настройки частичного списания: какие свойства расходуются частями.
+     *
+     * Пусто у обычного предмета, и списание у него остаётся штуками.
+     */
+    public function partialWriteoffProperties()
+    {
+        return $this->hasMany(ItemPartialProperty::class, 'item_id')
+            ->orderBy('item_partial_property.sort')
+            ->orderBy('item_partial_property.property_id');
+    }
+
+    /** Остаток каждого расходуемого свойства внутри текущей штуки. */
+    public function partialRemainders()
+    {
+        return $this->hasMany(ItemPartialRemaining::class, 'item_id');
     }
 
     public function images(): BelongsToMany

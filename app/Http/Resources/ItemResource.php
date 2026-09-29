@@ -6,6 +6,7 @@ use App\Http\Resources\Concerns\MarksDeleted;
 use App\Http\Resources\ImageResource;
 use App\Models\Item;
 use App\Services\AccessService;
+use App\Services\PartialWriteoff;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -61,6 +62,11 @@ class ItemResource extends JsonResource
                 // сканировали, высвобождается и может быть наклеен на другую
                 // вещь. По умолчанию выключено.
                 'release_code_on_writeoff' => (bool) $this->release_code_on_writeoff,
+
+                // Расход частями по свойствам. Сами настройки и остатки — в
+                // одноимённом блоке partial ниже, потому что это не поле
+                // предмета, а расчёт по его свойствам.
+                'partial_writeoff' => (bool) $this->partial_writeoff,
                 'created_at'  => $this->created_at,
                 'updated_at'  => $this->updated_at,
             ],
@@ -84,6 +90,53 @@ class ItemResource extends JsonResource
             // просто нет — карточка предмета их показывает, а список обошёл
             // бы ещё одну выборку на страницу впустую.
             'properties' => ItemPropertyResource::collection($this->whenLoaded('propertyValues')),
+
+            // Расход частями: по каждому расходуемому свойству — норма на
+            // штуку, сколько осталось внутри текущей штуки и сколько всего с
+            // учётом целых штук.
+            'partial' => $this->whenLoaded('partialWriteoffProperties', function (): array {
+                return $this->partialWriteoffBlock();
+            }),
         ];
+    }
+
+    /**
+     * Блок частичного списания для ответа.
+     *
+     * Всего и остатка текущей штуки здесь три числа, и они нужны вместе:
+     * сколько осталось по складу и сколько — в той бутылке, которая сейчас
+     * расходуется. Считается на лету, отдельной колонки с итогом нет: итог
+     * меняется вместе с количеством и нормой, и хранить его отдельно значило
+     * бы держать вторую копию одного и того же.
+     */
+    private function partialWriteoffBlock(): array
+    {
+        $partial = app(PartialWriteoff::class);
+        $settings = $partial->settings($this->resource);
+        $rows = [];
+
+        foreach ($settings as $setting) {
+            $norm = $partial->norm($this->resource, $setting->property_id);
+
+            if ($norm === null) {
+                // Нормы нет — расходовать нечего, и такую настройку
+                // показывать незачем.
+                continue;
+            }
+
+            $remaining = $partial->remaining($this->resource, $setting->property_id, $norm);
+
+            $rows[] = [
+                'property_id'     => $setting->property_id,
+                'step'            => (float) $setting->step,
+                'is_full_reason'  => (bool) $setting->is_full_reason,
+                'sort'            => (int) $setting->sort,
+                'norm'            => $norm,
+                'remaining'       => $remaining,
+                'total'           => $partial->total($this->resource, $setting->property_id, $norm),
+            ];
+        }
+
+        return $rows;
     }
 }
