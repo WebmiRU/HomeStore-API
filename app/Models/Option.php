@@ -24,6 +24,7 @@ class Option extends Model
         'operation_mode',
         'locale',
         'remember_operation_mode',
+        'link_click',
         'theme',
         'accent',
     ];
@@ -102,6 +103,22 @@ class Option extends Model
 
     /** Нейтральный: подписи и рамки без цветного акцента. */
     public const ACCENT_SLATE = 'slate';
+
+    /** Клик по ссылке ведёт на страницу объекта — как прежде. */
+    public const LINK_CLICK_NAVIGATE = 'navigate';
+
+    /** Клик по ссылке добавляет объект в фильтр списка, не уходя со страницы. */
+    public const LINK_CLICK_FILTER = 'filter';
+
+    /**
+     * Что делает клик по ссылке на объект: переход или отбор.
+     *
+     * @return array<int, string>
+     */
+    public static function linkClicks(): array
+    {
+        return [self::LINK_CLICK_NAVIGATE, self::LINK_CLICK_FILTER];
+    }
 
     /**
      * Акцентные цвета.

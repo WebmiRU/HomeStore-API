@@ -45,6 +45,7 @@ class UpdateOptionRequest extends FormRequest
             'theme'           => ['sometimes', 'string', Rule::in(Option::themes())],
 
             'accent'          => ['sometimes', 'string', Rule::in(Option::accents())],
+            'link_click'      => ['sometimes', 'string', Rule::in(Option::linkClicks())],
 
 
             'remember_operation_mode' => ['sometimes', 'boolean'],
@@ -67,6 +68,7 @@ class UpdateOptionRequest extends FormRequest
             'operation_mode.in'   => __('Режим работы может быть только «Поиск», «Пополнение» или «Списание».'),
             'remember_operation_mode.boolean' => __('Запоминать режим работы — да или нет.'),
             'theme.in'          => __('Тема может быть только «Тёмная», «Светлая» или «Как в системе».'),
+            'link_click.in'     => __('Клик по ссылке бывает только переходом или отбором.'),
             'accent.in'         => __('Акцент может быть только один из предложенных в настройках.'),
         ];
     }
