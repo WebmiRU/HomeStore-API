@@ -39,9 +39,27 @@ class DictionaryController extends Controller
         return new DictionaryResource($model->load(['values', 'user'])->loadCount('values'));
     }
 
+    /**
+     * Создать справочник вместе со значениями.
+     *
+     * Значения заводятся здесь же, а не вторым запросом после создания: до
+     * появления значений справочник нельзя было применить ни к одному
+     * свойству, и заведение в два захода обрывалось на полпути — оставался
+     * пустой справочник и ничего не напоминало, что он не пригодится.
+     */
     public function post(StoreDictionaryRequest $request): JsonResponse
     {
-        $dictionary = Dictionary::create($request->validated());
+        $values = $request->validated('values', []);
+
+        $dictionary = DB::transaction(function () use ($request, $values) {
+            $dictionary = Dictionary::create($request->safe()->except('values'));
+
+            foreach ($values as $title) {
+                $dictionary->values()->create(['title' => $title]);
+            }
+
+            return $dictionary;
+        });
 
         return (new DictionaryResource($dictionary->load(['values', 'user'])->loadCount('values')))
             ->response()
