@@ -168,6 +168,7 @@ Route::prefix('code')->controller(CodeController::class)->group(function (): voi
 
 Route::prefix('operation')->controller(OperationController::class)->group(function (): void {
     Route::post('/', 'store');
+    Route::post('correction', 'correction');
 });
 
 // Журнал списаний и пополнений с откатами.

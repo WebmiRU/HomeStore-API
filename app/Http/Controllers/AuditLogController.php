@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class AuditLogController extends Controller
@@ -212,10 +213,22 @@ class AuditLogController extends Controller
     }
 
     /**
-     * Снимки количества (остатка) во времени для конкретной сущности.
-     * Строятся из лога изменений: item.created / item.updated / operation.*.
-     * Итоговые точки уникальны: повторяющиеся значения (например, item.updated
-     * следующий сразу за операцией) отбрасываются.
+     * Ряд остатков во времени для предмета.
+     *
+     * Берётся из строк операций, а не из журнала действий. Журнал обрезается
+     * на 2000 записей и не хранит остатков вовсе — при длинной истории ряд
+     * начинался с середины, а стартовой точки не было никогда: при создании
+     * карточки в журнал падает снапшот, а остатков по свойствам там нет, потому
+     * что на тот момент их никто не считал.
+     *
+     * В строке операции лежит и то и другое: сколько штук было и стало
+     * (before/after) и сколько осталось по каждому расходуемому свойству
+     * (property_before/property_after). Движения предмета, отменённые сторно,
+     * приходят такими же строками с обратным значением — график показывает
+     * откат сам, без отдельной обработки.
+     *
+     * Повторы отбрасываются: списание по свойствам не двигает количество, и
+     * без этого в ряд по штукам попадала бы точка, равная предыдущей.
      */
     public function balance(Request $request): JsonResponse
     {
@@ -226,66 +239,86 @@ class AuditLogController extends Controller
             'date_to'     => ['sometimes', 'date', 'after_or_equal:date_from'],
         ])->validated();
 
-        $query = AuditLog::query();
-        $this->applyScope($query, $request);
+        // Остатки по операциям есть только у предметов: склад и хранилище
+        // считаются штуками, и для них ряд строится по той же таблице строк.
+        if ($validated['entity_type'] !== 'item') {
+            return response()->json(['data' => [], 'series' => []]);
+        }
 
-        $rows = $query
-            ->whereIn('action', ['item.created', 'item.updated', 'operation.replenish', 'operation.writeoff'])
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->limit(2000)
-            ->get(['id', 'created_at', 'payload']);
+        $query = DB::table('stock_operation_item as row')
+            ->join('stock_operation', 'stock_operation.id', '=', 'row.operation_id')
+            ->where('row.item_id', (int) $validated['entity_id'])
+            ->whereNull('stock_operation.reversed_at')
+            ->orderBy('stock_operation.created_at')
+            ->orderBy('stock_operation.id')
+            ->orderBy('row.id');
+
+        if (isset($validated['date_from'])) {
+            $query->where('stock_operation.created_at', '>=', $validated['date_from']);
+        }
+
+        if (isset($validated['date_to'])) {
+            $query->where('stock_operation.created_at', '<=', $validated['date_to']);
+        }
+
+        $rows = $query->get([
+            'stock_operation.id as operation_id',
+            'stock_operation.created_at as at',
+            'row.before as qty_before',
+            'row.after as qty_after',
+            'row.quantity',
+            'row.property_id',
+            'row.property_title',
+            'row.property_before',
+            'row.property_after',
+        ]);
 
         $points = [];
         $lastQty = null;
-
-        // Ряды по расходуемым свойствам. У предмета, который расходуется
-        // частями, количество штук почти не двигается — списали 300 мл из
-        // бутылки, а количество осталось прежним, — и график по штукам молчал
-        // бы обо всём расходе. Остатки по свойствам собираются отдельно.
         $series = [];
         $lastByProperty = [];
+        $titles = [];
 
-        foreach ($rows as $row) {
-            $payload = $row->payload ?? [];
+        foreach ($rows->groupBy('operation_id') as $operationRows) {
+            $at = (string) $operationRows->first()->at;
 
-            $propertyId = $payload['property_id'] ?? null;
+            /*
+             * Количество берётся по операции, а не по строке: одна операция по
+             * предмету пишет столько строк, сколько у него расходуемых
+             * свойств, и количество меняется один раз. По строкам ряд
+             * «скакал» внутри одной операции — то самое, чего на графике быть не
+             * должно. Штуки списаны в строке, где quantity != 0; если предмет
+             * расходуется частями и штуки не двигались, берётся последняя
+             * строка операции.
+             */
+            $unitRow = $operationRows->firstWhere('quantity', '!=', 0) ?? $operationRows->last();
+            $qtyBefore = $unitRow->qty_before === null ? null : (int) $unitRow->qty_before;
+            $qtyAfter = $unitRow->qty_after === null ? null : (int) $unitRow->qty_after;
 
-            if ($propertyId !== null && isset($payload['property_after'])) {
-                $propertyId = (int) $propertyId;
-                $after = (float) $payload['property_after'];
+            if ($qtyAfter !== null && $qtyAfter !== $lastQty && $qtyAfter !== $qtyBefore) {
+                $lastQty = $qtyAfter;
+                $points[] = ['at' => $at, 'qty' => $qtyAfter];
+            }
 
-                if (($lastByProperty[$propertyId] ?? null) !== $after) {
-                    $lastByProperty[$propertyId] = $after;
-                    $series[$propertyId]['title'] = $payload['property_title'] ?? (string) $propertyId;
-                    $series[$propertyId]['points'][] = [
-                        'at'  => (string) $row->created_at,
-                        'qty' => $after,
-                    ];
+            foreach ($operationRows as $row) {
+                if ($row->property_id === null || $row->property_after === null) {
+                    continue;
                 }
 
-                // Дальше идёт остаток штук по той же записи: у частичного
-                // списания их почти нет, и в общий ряд они бы только мешали.
-                $qty = $payload['after'] ?? null;
-            } else {
-                $qty = $payload['after'] ?? $payload['snapshot']['quantity'] ?? null;
+                $propertyId = (int) $row->property_id;
+                $after = (float) $row->property_after;
+
+                // Повтор подряд идущих одинаковых значений: половина строк у
+                // расходуемого предмета — это другие свойства, и без проверки
+                // кривая дрожала бы туда-сюда без всякой причины.
+                if (($lastByProperty[$propertyId] ?? null) === $after) {
+                    continue;
+                }
+
+                $lastByProperty[$propertyId] = $after;
+                $titles[$propertyId] ??= $row->property_title;
+                $series[$propertyId]['points'][] = ['at' => $at, 'qty' => $after];
             }
-
-            if ($qty === null) {
-                continue;
-            }
-
-            $qty = (int) $qty;
-
-            if ($qty === $lastQty) {
-                continue;
-            }
-
-            $lastQty = $qty;
-            $points[] = [
-                'at'  => (string) $row->created_at,
-                'qty' => $qty,
-            ];
         }
 
         $propertySeries = [];
@@ -293,7 +326,7 @@ class AuditLogController extends Controller
         foreach ($series as $propertyId => $row) {
             $propertySeries[] = [
                 'property_id' => $propertyId,
-                'title'       => $row['title'],
+                'title'       => $titles[$propertyId] ?? (string) $propertyId,
                 'points'      => $row['points'],
             ];
         }

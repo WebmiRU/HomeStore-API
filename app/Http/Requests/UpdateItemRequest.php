@@ -72,6 +72,13 @@ class UpdateItemRequest extends FormRequest
             'partial_properties.*.is_full_reason' => ['sometimes', 'boolean'],
             'partial_properties.*.sort'            => ['sometimes', 'integer'],
 
+
+            // Что делать с остатком, когда у расходуемого свойства поменялось
+            // значение: сохранить объём и пересчитать штуки либо сохранить штуки
+            // и пересчитать объём. Решение человека, а не сервера: по карточке
+            // не видно, ошибка это ввода или ошибка прежнего учёта.
+            'partial_norms'               => ['sometimes', 'array'],
+            'partial_norms.*'             => ['required', 'in:recalculate,keep'],
         ];
     }
 }

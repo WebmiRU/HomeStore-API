@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Enums\AuditAction;
 use App\Enums\StockDirection;
+use App\Http\Requests\StoreCorrectionRequest;
 use App\Http\Requests\StoreOperationRequest;
 use App\Http\Resources\StockOperationResource;
 use App\Models\Code;
 use App\Models\Item;
 use App\Models\StockOperation;
 use App\Models\Property;
+use App\Services\AccessService;
 use App\Services\AuditLogService;
 use App\Services\CodedQuantity;
 use App\Services\PartialWriteoff;
@@ -70,6 +72,194 @@ class OperationController extends Controller
      *
      * @param  array<int, mixed>  $appliedRows
      */
+    /**
+     * Корректировка остатка фактическим.
+     *
+     * Человек знает, сколько товара на руках, и сверяет с тем, что показывает
+     * система. Списаниями такое не поправить: подгонять остаток сотней мешков
+     * ради одной ошибки в норме — значит наврать в журнале, а журнал для того и
+     * ведётся. Поэтому здесь вводится факт, а дельту считает сервер.
+     *
+     * Само правило расчёта то же, что у обычной операции: если факт больше
+     * остатка — это пополнение, меньше — списание. Разница только в том, что
+     * человек не выбирает знак, и потому не может ошибиться в арифметике.
+     *
+     * Пометка «Корректировка» идёт в комментарий операции: без неё в движениях
+     * видно списание, и человек решит, что что-то забрали со склада.
+     */
+    public function correction(StoreCorrectionRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $rows = $validated['payload'];
+        $comment = trim((string) ($validated['comment'] ?? ''));
+        $label = __('Корректировка');
+        $appliedRows = [];
+        $operation = null;
+
+        DB::transaction(function () use ($rows, $comment, $label, &$appliedRows, &$operation): void {
+            try {
+                foreach ($rows as $row) {
+                    $this->applyCorrection($row, $appliedRows);
+                }
+
+                $operation = $this->recordCorrection($comment, $label, $appliedRows);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['payload' => [$e->getMessage()]]);
+            }
+        });
+
+        return (new StockOperationResource($operation->load(['author', 'rows'])))->response();
+    }
+
+    /**
+     * Дельта по одной строке корректировки: обычный предмет — целыми штуками,
+     * расходуемый — по фактическому остатку каждого указанного свойства.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  array<int, mixed>  $appliedRows
+     */
+    private function applyCorrection(array $row, array &$appliedRows): void
+    {
+        $item = Item::query()->whereKey((int) $row['item_id'])->lockForUpdate()->firstOrFail();
+
+        // Корректировка меняет остаток так же, как обычная операция, и прав на
+        // неё столько же: без права правки предмета остаток не трогаем.
+        abort_unless(app(AccessService::class)->canEdit($item), 403, __('Недостаточно прав для правки предмета'));
+
+        $code = (string) ($item->codes()->orderBy('id')->value('code') ?? '');
+        $settings = $this->partialWriteoff->settings($item);
+        $isPartial = $settings->isNotEmpty();
+
+        if ($isPartial) {
+            foreach ($row['properties'] ?? [] as $property) {
+                $this->applyCorrectionToProperty($item, $settings, $code, $appliedRows, $row, $property);
+            }
+
+            return;
+        }
+
+        if (! array_key_exists('quantity', $row)) {
+            return;
+        }
+
+        $before = (int) ($item->quantity ?? 1);
+        $after = (int) $row['quantity'];
+
+        if ($after === $before) {
+            return;
+        }
+
+        $appliedRows[] = [
+            'code'     => $code,
+            'item_id'  => $item->id,
+            'owner_id' => $item->user_id,
+            'title'    => $item->title,
+            'delta'    => abs($after - $before),
+            'before'   => $before,
+            'after'    => $after,
+            'is_writeoff' => $after < $before,
+        ];
+
+        $item->forceFill(['quantity' => $after])->save();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection  $settings
+     * @param  array<int, mixed>  $appliedRows
+     * @param  array<string, mixed>  $row
+     * @param  array<string, mixed>  $property
+     */
+    private function applyCorrectionToProperty(
+        Item $item,
+        $settings,
+        string $code,
+        array &$appliedRows,
+        array $row,
+        array $property,
+    ): void {
+        $propertyId = (int) $property['property_id'];
+        $actual = round((float) $property['actual'], 3);
+        $norm = $this->partialWriteoff->requiredNorm($item, $propertyId);
+        $current = $this->partialWriteoff->total($item, $propertyId, $norm);
+        $delta = round($actual - $current, 3);
+
+        if (abs($delta) < 0.0001) {
+            return;
+        }
+
+        // Свойство могло быть расходуемым, а могло перестать: проверка настройки
+        // нужна, иначе корректировкой можно было бы создать расход там, где
+        // его не бывает.
+        if (! $settings->contains('property_id', $propertyId)) {
+            throw new \InvalidArgumentException(sprintf(
+                '%s: свойство «%s» не расходуется частями',
+                $item->title,
+                $this->propertyTitle($propertyId)
+            ));
+        }
+
+        $appliedRows = [
+            ...$appliedRows,
+            ...$this->applyParts($item, [[
+                'property_id' => $propertyId,
+                'amount'      => abs($delta),
+            ]], $delta < 0 ? 'operation.writeoff' : 'operation.replenish', $code),
+        ];
+    }
+
+    /**
+     * @param  array<int, mixed>  $appliedRows
+     */
+    private function recordCorrection(string $comment, string $label, array $appliedRows): StockOperation
+    {
+        if ($appliedRows === []) {
+            throw new \InvalidArgumentException(__('Фактический остаток совпадает с тем, что уже заведено'));
+        }
+
+        $direction = collect($appliedRows)->contains(fn ($row) => ($row['is_writeoff'] ?? false) || ($row['delta'] ?? 0) > 0)
+            && $this->correctionIsWriteoff($appliedRows)
+            ? StockDirection::Writeoff
+            : StockDirection::Replenish;
+
+        $parts = array_filter([$label, $comment !== '' ? $comment : null]);
+
+        $operation = $this->stock->record($direction, implode(': ', $parts), $appliedRows);
+
+        foreach ($appliedRows as $row) {
+            $this->logs->record(
+                $direction === StockDirection::Writeoff ? AuditAction::OperationWriteoff : AuditAction::OperationReplenish,
+                'item_id',
+                (int) $row['item_id'],
+                (int) ($row['owner_id'] ?? 0),
+                $this->journalPayload($row, $operation),
+            );
+        }
+
+        return $operation;
+    }
+
+    /**
+     * Направление операции: смешанную правку (по штукам плюс, по свойствам
+     * минус) в одну операцию не свести, поэтому берётся то, что преобладает,
+     * а точные дельты остаются в строках.
+     *
+     * @param  array<int, mixed>  $appliedRows
+     */
+    private function correctionIsWriteoff(array $appliedRows): bool
+    {
+        $spend = 0;
+        $fill = 0;
+
+        foreach ($appliedRows as $row) {
+            $weight = isset($row['amount']) ? (float) $row['amount'] : (float) abs($row['delta'] ?? 0);
+            $isSpend = ($row['is_writeoff'] ?? null) ?? ((int) ($row['before'] ?? 0) > (int) ($row['after'] ?? 0));
+
+            $isSpend ? $spend += $weight : $fill += $weight;
+        }
+
+        return $spend > $fill;
+    }
+
     private function record(
         string $type,
         StockDirection $direction,

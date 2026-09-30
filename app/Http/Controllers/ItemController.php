@@ -39,6 +39,7 @@ class ItemController extends Controller
         private readonly CodedQuantity $codedQuantity,
         private readonly PartialWriteoff $partialWriteoff,
         private readonly \App\Services\ImageAttach $images,
+        private readonly \App\Services\InitialStock $initialStock,
     ) {}
 
     public function index(Request $request): ResourceCollection
@@ -133,6 +134,12 @@ class ItemController extends Controller
             // неполную карточку без всяких объяснений.
             $this->images->attachTo($item, $data['images'] ?? []);
 
+            // Количество из карточки — это появление товара на складе, и оно
+            // записывается приходом. Пока оно было просто полем в таблице, о
+            // нём не оставалось следа: ни стартовой точки на графике остатков,
+            // ни строки в движениях предмета.
+            $this->initialStock->recordFor($item, $item->quantity);
+
             return $item;
         });
 
@@ -150,7 +157,19 @@ class ItemController extends Controller
             $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
             $partial = $this->normalizePartialProperties($data);
-            unset($data['code'], $data['codes'], $data['properties'], $data['partial_properties'], $data['images']);
+            // Решение по норме нужно только на время сохранения, поэтому
+            // снимается вместе с прочими служебными полями — но сначала
+            // читается, иначе к моменту проверки его уже не будет.
+            $normDecisions = (array) ($data['partial_norms'] ?? []);
+
+            unset(
+                $data['code'],
+                $data['codes'],
+                $data['properties'],
+                $data['partial_properties'],
+                $data['images'],
+                $data['partial_norms'],
+            );
 
             // Количество помеченного предмета сервер считает сам по кодам.
             // Снимаем присланное ДО update: иначе оно записалось бы в базу и
@@ -158,7 +177,47 @@ class ItemController extends Controller
             // пересчёт по ним не запустился.
             $data = $this->codedQuantity->stripQuantity($model, $data);
 
+            /*
+             * Количество у расходуемого предмета не правится: оно считается из
+             * остатка свойств, и присланное число сервер всё равно пересчитал
+             * бы по-своему — тихо и мимо формы. Раньше оно просто записывалось
+             * в базу, откуда и брались расхождения вида «2 штуки и 1800 мл».
+             */
+            $isPartial = $this->partialWriteoff->settings($model)->isNotEmpty();
+            $before = $model->quantity === null ? 1 : (int) $model->quantity;
+            $after = $before;
+
+            if (array_key_exists('quantity', $data)) {
+                $after = $data['quantity'] === null ? 1 : (int) $data['quantity'];
+
+                if ($isPartial) {
+                    if ($after !== $before) {
+                        throw ValidationException::withMessages([
+                            'quantity' => [__('У предмета, который расходуется частями, количество считается по остатку свойств')],
+                        ]);
+                    }
+
+                    unset($data['quantity']);
+                }
+            }
+
+            // Смена нормы расходуемого свойства — не молчаливое дело: объём
+            // остаётся прежним, а меняется либо число штук, либо сам запас.
+            // Что именно — угадать нельзя (ошибка ввода или предыдущая ошибка в
+            // учёте), поэтому решение приходит сверху, и без него сохранение
+            // отклоняется.
+            if ($properties !== null) {
+                $this->applyNormDecisions($model, $properties, $normDecisions);
+            }
+
             $model->update($data);
+
+            // Правка количества — движение остатка: было 3, стало 5, значит
+            // пришли две штуки. Без операции в журнале осталась бы правка
+            // карточки, неотличимая от списания.
+            if ($after !== $before) {
+                $this->initialStock->recordQuantityChange($model, $before, $after);
+            }
 
             if ($properties !== null) {
                 $this->propertyService->sync($model, $properties);
@@ -283,6 +342,86 @@ class ItemController extends Controller
      * @param  array<string, mixed>  $data  результат $request->validated()
      * @return list<string>|null
      */
+    /**
+     * Пересчёт остатков там, где у расходуемого свойства поменялось значение.
+     *
+     * @param  array<int, mixed>  $properties  нормализованные значения свойств
+     * @param  array<int, string>  $decisions  выбор человека: recalculate | keep
+     */
+    private function applyNormDecisions(Item $model, array $properties, array $decisions): void
+    {
+        $settings = $this->partialWriteoff->settings($model);
+
+        if ($settings->isEmpty()) {
+            return;
+        }
+
+        $incoming = [];
+
+        foreach ($properties as $property) {
+            $text = trim((string) ($property['value'] ?? ''));
+
+            if ($text === '') {
+                continue;
+            }
+
+            $incoming[(int) $property['property_id']] = (float) $text;
+        }
+
+        $pending = [];
+
+        foreach ($settings as $setting) {
+            $propertyId = (int) $setting->property_id;
+            $newNorm = $incoming[$propertyId] ?? null;
+            $oldNorm = $this->partialWriteoff->norm($model, $propertyId);
+
+            if ($newNorm === null || $newNorm <= 0 || $oldNorm === null) {
+                continue;
+            }
+
+            if (abs($newNorm - $oldNorm) < 0.0001) {
+                continue;
+            }
+
+            // Пока остаток нулевой, менять нечего: пересчитывать нечего, и
+            // решение человека о штуках не понадобится.
+            if ((int) ($model->quantity ?? 1) <= 0) {
+                continue;
+            }
+
+            $mode = $decisions[$propertyId] ?? null;
+
+            if (! in_array($mode, ['recalculate', 'keep'], true)) {
+                throw ValidationException::withMessages([
+                    'partial_norms' => [sprintf(
+                        __('«%s»: значение изменилось с %s на %s, укажите, пересчитать штуки или оставить'),
+                        $this->propertyTitle($propertyId),
+                        $this->formatAmount($oldNorm),
+                        $this->formatAmount($newNorm)
+                    )],
+                ]);
+            }
+
+            $pending[$propertyId] = ['norm' => $newNorm, 'mode' => $mode];
+        }
+
+        // Порядок важен: решение принимается по старым нормам, поэтому все
+        // пересчёты идут до записи новых значений свойств.
+        foreach ($pending as $propertyId => $decision) {
+            $this->partialWriteoff->applyNormChange($model, $propertyId, $decision['norm'], $decision['mode']);
+        }
+    }
+
+    private function propertyTitle(int $propertyId): string
+    {
+        return \App\Models\Property::find($propertyId)?->title ?? (string) $propertyId;
+    }
+
+    private function formatAmount(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 3, ',', ''), '0'), ',');
+    }
+
     private function normalizeCodes(array $data): ?array
     {
         $raw = match (true) {

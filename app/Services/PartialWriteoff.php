@@ -378,7 +378,7 @@ class PartialWriteoff
      * Ноль и пустое значение означают, что расходуемого по свойству нет: списать
      * «ноль граммов» нельзя, и предмет без нормы молча уедал бы штуки.
      */
-    private function requiredNorm(Item $item, int $propertyId): float
+    public function requiredNorm(Item $item, int $propertyId): float
     {
         $norm = $this->norm($item, $propertyId);
 
@@ -439,6 +439,63 @@ class PartialWriteoff
      *
      * @param  Collection<int, ItemPartialProperty>  $settings
      */
+    /**
+     * Смена нормы расходуемого свойства при уже имеющемся остатке.
+     *
+     * Норма — это не описание предмета, а делитель, по которому считаются
+     * штуки. Меняя её, человек меняет либо число штук, либо сам запас, и что
+     * именно — угадать нельзя: то ли он ошибся при вводе (написал 1000 вместо
+     * 100), то ли ошибка в другом месте (в ящике оказалось не 10 литров, а
+     * 10 бутылок по 100 мл). Поэтому решение принимает он, а не сервер.
+     *
+     * recalculate — сохраняется объём: сколько миллилитров было, столько и
+     * остаётся, а штуки пересчитываются под новую норму.
+     * keep — сохраняется число штук: сколько штук было, столько и остаётся, а
+     * запас пересчитывается под новую норму. Остаток внутри штуки при этом
+     * упирается в норму: он и есть «неполная штука», а быть больше целой не
+     * может.
+     *
+     * @return array{quantity: int, remaining: float, stock: float}
+     */
+    public function applyNormChange(Item $item, int $propertyId, float $newNorm, string $mode): array
+    {
+        $settings = $this->settings($item);
+        $quantity = (int) ($item->quantity ?? 1);
+
+        // Метод вызывается ДО записи нового значения, иначе старая норма уже
+        // неотличима от новой и сравнивать не с чем.
+        $oldNorm = $this->norm($item, $propertyId) ?? $newNorm;
+        $remainders = $this->remainders($item, $settings);
+        $remaining = $remainders[$propertyId] ?? $oldNorm;
+        $stock = $quantity <= 0 ? 0.0 : ($quantity - 1) * $oldNorm + max(0.0, $remaining);
+
+        if ($quantity > 0 && $mode === 'recalculate') {
+            $quantity = (int) ceil(max(0.0, $stock) / $newNorm - self::TOLERANCE);
+            $remaining = $this->clampToNorm($stock - ($quantity - 1) * $newNorm, $newNorm);
+        } else {
+            // Штуки прежние, а остаток упирается в новую норму: он и есть
+            // «неполная штука», и быть больше целой он не может.
+            $remaining = $this->clampToNorm($remaining, $newNorm);
+        }
+
+        $remainders[$propertyId] = $remaining;
+        $this->persist($item, $remainders, $quantity);
+
+        return [
+            'quantity'  => $quantity,
+            'remaining' => $remaining,
+            'stock'     => $quantity <= 0 ? 0.0 : ($quantity - 1) * $newNorm + max(0.0, $remaining),
+        ];
+    }
+
+    /**
+     * Норма свойства так, как она записана в карточке.
+     */
+    public function currentNorm(Item $item, int $propertyId): ?float
+    {
+        return $this->norm($item, $propertyId);
+    }
+
     public function resync(Item $item, Collection $settings): void
     {
         foreach ($settings as $setting) {
