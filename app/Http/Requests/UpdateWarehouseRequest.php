@@ -15,12 +15,6 @@ class UpdateWarehouseRequest extends FormRequest
     {
         return [
             'title'   => ['sometimes', 'string', 'max:500'],
-            'user_id' => ['sometimes', 'integer', 'exists:user,id'],
-            // Картинки, загруженные до создания: сущности ещё нет, привязать
-            // не к чему, и файл ждёт своего владельца до сохранения.
-            'images'                => ['sometimes', 'array', 'max:50'],
-            'images.*.id'           => ['required', 'integer', 'min:1'],
-            'images.*.alt'          => ['nullable', 'string', 'max:255'],
-        ];
+            'user_id' => ['sometimes', 'integer', 'exists:user,id'],        ];
     }
 }
