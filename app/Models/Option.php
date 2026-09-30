@@ -91,6 +91,18 @@ class Option extends Model
     /** Янтарный. */
     public const ACCENT_AMBER = 'amber';
 
+    /** Красный. */
+    public const ACCENT_RED = 'red';
+
+    /** Бирюзовый. */
+    public const ACCENT_TEAL = 'teal';
+
+    /** Розовый. */
+    public const ACCENT_PINK = 'pink';
+
+    /** Нейтральный: подписи и рамки без цветного акцента. */
+    public const ACCENT_SLATE = 'slate';
+
     /**
      * Акцентные цвета.
      *
@@ -102,7 +114,16 @@ class Option extends Model
      */
     public static function accents(): array
     {
-        return [self::ACCENT_GREEN, self::ACCENT_PURPLE, self::ACCENT_BLUE, self::ACCENT_AMBER];
+        return [
+            self::ACCENT_GREEN,
+            self::ACCENT_PURPLE,
+            self::ACCENT_BLUE,
+            self::ACCENT_AMBER,
+            self::ACCENT_RED,
+            self::ACCENT_TEAL,
+            self::ACCENT_PINK,
+            self::ACCENT_SLATE,
+        ];
     }
 
     public function user()
