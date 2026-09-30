@@ -11,6 +11,7 @@ use App\Services\UserTokenService;
 use App\Support\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class UserAuthController extends Controller
@@ -31,16 +32,23 @@ class UserAuthController extends Controller
             ]);
         }
 
-        $token = app(UserTokenService::class)->issue($user, 'web');
+        // Выдача токена и запись о входе — одна транзакция. Иначе человек войдёт,
+        // а в журнале входа не будет: выданный токен работает, а история молчит,
+        // и понять, кто и когда входил, уже нельзя.
+        $token = DB::transaction(function () use ($user): string {
+            $token = app(UserTokenService::class)->issue($user, 'web');
 
-        $this->logs->record(
-            AuditAction::AuthLogin,
-            'target_user_id',
-            (int) $user->id,
-            (int) $user->id,
-            ['method' => 'password'],
-            (int) $user->id,
-        );
+            $this->logs->record(
+                AuditAction::AuthLogin,
+                'target_user_id',
+                (int) $user->id,
+                (int) $user->id,
+                ['method' => 'password'],
+                (int) $user->id,
+            );
+
+            return $token;
+        });
 
         return response()->json([
             'token' => $token,
@@ -57,16 +65,21 @@ class UserAuthController extends Controller
 
         $token = $plain !== '' ? app(UserTokenService::class)->resolve($plain) : null;
         if ($token !== null) {
-            app(UserTokenService::class)->revoke($token);
+            // Отзыв токена и запись о выходе — одна транзакция, как и при входе:
+            // токен, который перестал работать, должен остаться в базе вместе с
+            // записью о том, кто вышел.
+            DB::transaction(function () use ($token): void {
+                app(UserTokenService::class)->revoke($token);
 
-            $this->logs->record(
-                AuditAction::AuthLogout,
-                'target_user_id',
-                (int) $token->user_id,
-                (int) $token->user_id,
-                [],
-                (int) $token->user_id,
-            );
+                $this->logs->record(
+                    AuditAction::AuthLogout,
+                    'target_user_id',
+                    (int) $token->user_id,
+                    (int) $token->user_id,
+                    [],
+                    (int) $token->user_id,
+                );
+            });
         }
 
         CurrentUser::set(null);

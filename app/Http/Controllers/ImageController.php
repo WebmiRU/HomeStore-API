@@ -27,14 +27,21 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        [$image, $duplicates] = $this->store($request, $model);
+        // Запись картинки, привязка к предмету и журнал — одна транзакция.
+        // Обрыв посередине оставил бы в базе картинку без привязки, а в
+        // журнале — запись о действии, которого не было.
+        [$image, $duplicates] = DB::transaction(function () use ($request, $model): array {
+            [$image, $duplicates] = $this->store($request, $model);
 
-        // Повтор не пишем в журнал: ничего не изменилось, а запись «фото
-        // добавлено» была бы враньём. Убирание дублей тоже не пишется —
-        // это уборка следов прежнего поведения, а не действие человека.
-        if ($duplicates === null) {
-            $this->logImage('item', AuditAction::ImageAttached, $model, $image);
-        }
+            // Повтор не пишем в журнал: ничего не изменилось, а запись
+            // «фото добавлено» была бы враньём. Уборка дублей тоже молчит —
+            // это след прежнего поведения, а не действие человека.
+            if ($duplicates === null) {
+                $this->logImage('item', AuditAction::ImageAttached, $model, $image);
+            }
+
+            return [$image, $duplicates];
+        });
 
         return $this->uploadResponse($image, $duplicates);
     }
@@ -43,11 +50,21 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        [$image, $duplicates] = $this->store($request, $model);
+        // Запись картинки, привязка к предмету и журнал — одна транзакция.
+        // Обрыв посередине оставил бы в базе картинку без привязки, а в
+        // журнале — запись о действии, которого не было.
+        [$image, $duplicates] = DB::transaction(function () use ($request, $model): array {
+            [$image, $duplicates] = $this->store($request, $model);
 
-        if ($duplicates === null) {
-            $this->logImage('store', AuditAction::ImageAttached, $model, $image);
-        }
+            // Повтор не пишем в журнал: ничего не изменилось, а запись
+            // «фото добавлено» была бы враньём. Уборка дублей тоже молчит —
+            // это след прежнего поведения, а не действие человека.
+            if ($duplicates === null) {
+                $this->logImage('store', AuditAction::ImageAttached, $model, $image);
+            }
+
+            return [$image, $duplicates];
+        });
 
         return $this->uploadResponse($image, $duplicates);
     }
@@ -56,11 +73,21 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        [$image, $duplicates] = $this->store($request, $model);
+        // Запись картинки, привязка к предмету и журнал — одна транзакция.
+        // Обрыв посередине оставил бы в базе картинку без привязки, а в
+        // журнале — запись о действии, которого не было.
+        [$image, $duplicates] = DB::transaction(function () use ($request, $model): array {
+            [$image, $duplicates] = $this->store($request, $model);
 
-        if ($duplicates === null) {
-            $this->logImage('warehouse', AuditAction::ImageAttached, $model, $image);
-        }
+            // Повтор не пишем в журнал: ничего не изменилось, а запись
+            // «фото добавлено» была бы враньём. Уборка дублей тоже молчит —
+            // это след прежнего поведения, а не действие человека.
+            if ($duplicates === null) {
+                $this->logImage('warehouse', AuditAction::ImageAttached, $model, $image);
+            }
+
+            return [$image, $duplicates];
+        });
 
         return $this->uploadResponse($image, $duplicates);
     }
@@ -158,10 +185,12 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
-        $this->logImage('item', AuditAction::ImageAltUpdated, $model, $image, [
-            'alt' => $request->input('alt'),
-        ]);
+        DB::transaction(function () use ($model, $image, $request): void {
+            $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+            $this->logImage('item', AuditAction::ImageAltUpdated, $model, $image, [
+                'alt' => $request->input('alt'),
+            ]);
+        });
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
     }
@@ -170,10 +199,12 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
-        $this->logImage('store', AuditAction::ImageAltUpdated, $model, $image, [
-            'alt' => $request->input('alt'),
-        ]);
+        DB::transaction(function () use ($model, $image, $request): void {
+            $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+            $this->logImage('store', AuditAction::ImageAltUpdated, $model, $image, [
+                'alt' => $request->input('alt'),
+            ]);
+        });
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
     }
@@ -181,10 +212,12 @@ class ImageController extends Controller
     public function reorderForItem(ReorderImagesRequest $request, Item $model): JsonResponse
     {
         $this->requireEdit($model);
-        $this->reorder($model, $request->validated('ids'));
-        $this->logImage('item', AuditAction::ImageReordered, $model, null, [
-            'ids' => $request->validated('ids'),
-        ]);
+        DB::transaction(function () use ($model, $request): void {
+            $this->reorder($model, $request->validated('ids'));
+            $this->logImage('item', AuditAction::ImageReordered, $model, null, [
+                'ids' => $request->validated('ids'),
+            ]);
+        });
 
         return response()->json(['ids' => $request->validated('ids')]);
     }
@@ -192,10 +225,12 @@ class ImageController extends Controller
     public function reorderForStore(ReorderImagesRequest $request, Store $model): JsonResponse
     {
         $this->requireEdit($model);
-        $this->reorder($model, $request->validated('ids'));
-        $this->logImage('store', AuditAction::ImageReordered, $model, null, [
-            'ids' => $request->validated('ids'),
-        ]);
+        DB::transaction(function () use ($model, $request): void {
+            $this->reorder($model, $request->validated('ids'));
+            $this->logImage('store', AuditAction::ImageReordered, $model, null, [
+                'ids' => $request->validated('ids'),
+            ]);
+        });
 
         return response()->json(['ids' => $request->validated('ids')]);
     }
@@ -203,10 +238,12 @@ class ImageController extends Controller
     public function reorderForWarehouse(ReorderImagesRequest $request, Warehouse $model): JsonResponse
     {
         $this->requireEdit($model);
-        $this->reorder($model, $request->validated('ids'));
-        $this->logImage('warehouse', AuditAction::ImageReordered, $model, null, [
-            'ids' => $request->validated('ids'),
-        ]);
+        DB::transaction(function () use ($model, $request): void {
+            $this->reorder($model, $request->validated('ids'));
+            $this->logImage('warehouse', AuditAction::ImageReordered, $model, null, [
+                'ids' => $request->validated('ids'),
+            ]);
+        });
 
         return response()->json(['ids' => $request->validated('ids')]);
     }
@@ -215,10 +252,12 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
-        $this->logImage('warehouse', AuditAction::ImageAltUpdated, $model, $image, [
-            'alt' => $request->input('alt'),
-        ]);
+        DB::transaction(function () use ($model, $image, $request): void {
+            $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+            $this->logImage('warehouse', AuditAction::ImageAltUpdated, $model, $image, [
+                'alt' => $request->input('alt'),
+            ]);
+        });
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
     }
@@ -227,8 +266,10 @@ class ImageController extends Controller
     {
         $this->requireEdit($model);
 
-        $model->images()->detach($image->id);
-        $this->logImage('warehouse', AuditAction::ImageDetached, $model, $image);
+        DB::transaction(function () use ($model, $image): void {
+            $model->images()->detach($image->id);
+            $this->logImage('warehouse', AuditAction::ImageDetached, $model, $image);
+        });
 
         return response()->json(null, 204);
     }

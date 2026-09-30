@@ -8,6 +8,7 @@ use App\Http\Requests\StoreOperationRequest;
 use App\Http\Resources\StockOperationResource;
 use App\Models\Code;
 use App\Models\Item;
+use App\Models\StockOperation;
 use App\Models\Property;
 use App\Services\AuditLogService;
 use App\Services\CodedQuantity;
@@ -41,8 +42,112 @@ class OperationController extends Controller
 
         $appliedRows = [];
         $prepared = [];
+        $operation = null;
 
-        DB::transaction(function () use ($type, $payload, &$appliedRows, &$prepared): void {
+        // Журнал пишется в той же транзакции, что и применение. Раньше он шёл
+        // после: если между применением и записью что-то ломалось, остаток на
+        // складе менялся, а в журнале движения не было — и вернуть такое
+        // движение было нечем. Неразделимое применение с журналом и есть смысл
+        // транзакции.
+        //
+        // Отказ расчёта — обычная ошибка проверки, а не поломка: человек вписал
+        // больше, чем осталось. Такое возвращается кодом 422 с текстом, а не
+        // 500 с трассировкой, за которой ничего не сделать.
+        DB::transaction(function () use ($type, $payload, $direction, $comment, &$appliedRows, &$prepared, &$operation): void {
+            try {
+                $this->applyOperation($type, $payload, $appliedRows, $prepared);
+                $operation = $this->record($type, $direction, $comment, $appliedRows);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['payload' => [$e->getMessage()]]);
+            }
+        });
+
+        return $this->answer($type, $payload, $appliedRows, $operation);
+    }
+
+    /**
+     * Запись операции и её строк в журнал, плюс журнал действий.
+     *
+     * @param  array<int, mixed>  $appliedRows
+     */
+    private function record(
+        string $type,
+        StockDirection $direction,
+        ?string $comment,
+        array $appliedRows,
+    ): StockOperation {
+        // Журнал операций: отдельная запись на каждый предмет (видимость — владелец предмета).
+        $action = $type === 'operation.replenish'
+            ? AuditAction::OperationReplenish
+            : AuditAction::OperationWriteoff;
+
+        $operation = $this->stock->record($direction, $comment, $appliedRows);
+
+        foreach ($appliedRows as $appliedRow) {
+            $this->logs->record(
+                $action,
+                'item_id',
+                (int) $appliedRow['item_id'],
+                (int) ($appliedRow['owner_id'] ?? 0),
+                $this->journalPayload($appliedRow, $operation),
+            );
+        }
+
+        return $operation;
+    }
+
+    /**
+     * Что пишется в журнал действий по строке операции.
+     *
+     * @param  array<string, mixed>  $appliedRow
+     * @return array<string, mixed>
+     */
+    /**
+     * Проверка и применение операции целиком.
+     *
+     * Отдельным методом, чтобы перехват ошибок расчёта не накрывал собой
+     * транзакцию: catch внутри замыкания поймал бы и то, что сломалось внутри
+     * самого DB::transaction, и проглотил бы ошибку базы.
+     *
+     * @param  array<int, mixed>  $appliedRows
+     * @param  array<int, mixed>  $prepared
+     */
+    private function applyOperation(string $type, array $payload, array &$appliedRows, array &$prepared): void
+    {
+            // Предметы этой операции блокируются до проверок остатка.
+            //
+            // Две операции, отправленные одновременно с двух устройств, читают
+            // остаток по очереди и обе видят одно и то же число: при остатке
+            // 100 обе проверки «списать 60» проходят, и в журнал ложатся две
+            // строки по 60, будто списали 120. Со склада уйдёт 60 — то есть
+            // остаток верный, а журнал врёт, и разойтись они могут позже, при
+            // возврате. С блокировкой вторая операция дождётся первой и увидит
+            // уже изменённый остаток.
+            //
+            // Блокировки берутся по возрастанию id: в одинаковом порядке они не
+            // могут столкнуться друг с другом, пока предметы идут в одной
+            // операции вразнобой.
+            $itemIds = [];
+
+            foreach ($payload as $row) {
+                [, $matches] = $this->resolveCode($row['code']);
+
+                foreach ($matches as $match) {
+                    if ($match->item_id !== null) {
+                        $itemIds[(int) $match->item_id] = true;
+                    }
+                }
+            }
+
+            $locked = $itemIds === []
+                ? collect()
+                : Item::query()
+                    ->whereIn('id', array_keys($itemIds))
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
             // Проход 1: проверяем ВСЕ строки и собираем все проблемы разом,
             // чтобы операция не «падала» с одним сообщением по первой же строке.
             $errors = [];
@@ -97,6 +202,11 @@ class OperationController extends Controller
                     $errors[] = sprintf('Код "%s" не привязан к предмету', $row['code']);
                     continue;
                 }
+
+                // Остаток читается с заблокированной модели предмета: та, что
+                // нашлась по коду, прочитана до блокировки и могла устареть, пока
+                // операция ждала свою очередь.
+                $item = $locked->get((int) $item->id) ?? $item;
 
                 $settings = $this->partialWriteoff->settings($item);
 
@@ -263,47 +373,54 @@ class OperationController extends Controller
                     'released_code_id' => $releasedCode?->id,
                 ];
             }
-        });
+    }
 
-        // Журнал операций: отдельная запись на каждый предмет (видимость — владелец предмета).
-        $action = $type === 'operation.replenish'
-            ? AuditAction::OperationReplenish
-            : AuditAction::OperationWriteoff;
+    /**
+     * Запись операции в журнал движений и ответ на неё.
+     *
+     * @param  array<int, mixed>  $appliedRows
+     */
+    /**
+     * Что пишется в журнал действий по строке операции.
+     *
+     * @param  array<string, mixed>  $appliedRow
+     * @return array<string, mixed>
+     */
+    private function journalPayload(array $appliedRow, StockOperation $operation): array
+    {
+        return [
+            'code'   => $appliedRow['code'],
+            'title'  => $appliedRow['title'],
 
-        $operation = $this->stock->record($direction, $comment, $appliedRows);
+            // В журнале дельта знаковая: списание — отрицательная.
+            'delta'  => $appliedRow['after'] - $appliedRow['before'],
+            'before' => $appliedRow['before'],
+            'after'  => $appliedRow['after'],
 
-        foreach ($appliedRows as $appliedRow) {
-            $this->logs->record(
-                $action,
-                'item_id',
-                (int) $appliedRow['item_id'],
-                (int) ($appliedRow['owner_id'] ?? 0),
-                [
-                    'code'   => $appliedRow['code'],
-                    'title'  => $appliedRow['title'],
+            // Расход по свойству. Без него запись о списании 300 мл выглядела бы
+            // как «было 2, стало 2»: количество штук у бутылки не изменилось,
+            // а расход был.
+            'property_id'     => $appliedRow['property_id'] ?? null,
+            'property_title'  => $appliedRow['property_title'] ?? null,
+            'amount'          => $appliedRow['amount'] ?? null,
+            'property_before' => $appliedRow['property_before'] ?? null,
+            'property_after'  => $appliedRow['property_after'] ?? null,
 
-                    // В журнале дельта знаковая: списание — отрицательная.
-                    'delta'  => $appliedRow['after'] - $appliedRow['before'],
-                    'before' => $appliedRow['before'],
-                    'after'  => $appliedRow['after'],
+            // Комментарий и номер операции: в журнале действий списание и
+            // пополнение остаются отдельными записями, а объяснение «куда
+            // списали» хранится один раз — в самой операции.
+            'operation_id' => $operation->id,
+            'comment'      => $operation->comment,
+        ];
+    }
 
-                    // Расход по свойству. Без него запись о списании 300 мл
-                    // выглядела бы как «было 2, стало 2»: количество штук у
-                    // бутылки не изменилось, а расход был.
-                    'property_id'     => $appliedRow['property_id'] ?? null,
-                    'property_title'  => $appliedRow['property_title'] ?? null,
-                    'amount'          => $appliedRow['amount'] ?? null,
-                    'property_before' => $appliedRow['property_before'] ?? null,
-                    'property_after'  => $appliedRow['property_after'] ?? null,
-                    // Комментарий и номер операции: в журнале действий списание
-                    // и пополнение остаются отдельными записями, а объяснение
-                    // «куда списали» хранится один раз — в самой операции.
-                    'operation_id' => $operation->id,
-                    'comment'      => $operation->comment,
-                ],
-            );
-        }
-
+    /**
+     * Ответ на применённую операцию.
+     *
+     * @param  array<int, mixed>  $appliedRows
+     */
+    private function answer(string $type, array $payload, array $appliedRows, StockOperation $operation): JsonResponse
+    {
         return response()->json([
             'type'       => $type,
             'comment'    => $operation->comment,
