@@ -74,6 +74,13 @@ class ItemController extends Controller
             $query->where('vendor_id', $request->integer('vendor_id'));
         }
 
+        // Фильтр по хранилищу. Вложенности, как у категории, здесь нет: у
+        // предмета ровно одно хранилище, и фильтр по нему и есть отбор
+        // «лежит здесь».
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->integer('store_id'));
+        }
+
         $paged = $query->orderByDesc('id')->paginate($request->integer('per_page', self::PER_PAGE));
 
         // Остатки расходуемых свойств для всей страницы сразу: по одному на
