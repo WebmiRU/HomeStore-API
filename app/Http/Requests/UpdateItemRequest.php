@@ -64,6 +64,13 @@ class UpdateItemRequest extends FormRequest
             'partial_properties'               => ['sometimes', 'nullable', 'array', 'max:50'],
             'partial_properties.*.property_id' => ['required', 'integer'],
             'partial_properties.*.step'        => ['sometimes', 'numeric', 'min:0'],
+
+            // Без правила для is_full_reason поле отбрасывалось при валидации,
+            // и снятая галочка «обнуление — признак пустого» молча
+            // сохранялась как включённая: предмет считали всегда готовым
+            // кончиться по любому из отмеченных свойств.
+            'partial_properties.*.is_full_reason' => ['sometimes', 'boolean'],
+            'partial_properties.*.sort'            => ['sometimes', 'integer'],
         ];
     }
 }

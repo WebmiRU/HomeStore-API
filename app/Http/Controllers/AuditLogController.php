@@ -165,9 +165,37 @@ class AuditLogController extends Controller
         $points = [];
         $lastQty = null;
 
+        // Ряды по расходуемым свойствам. У предмета, который расходуется
+        // частями, количество штук почти не двигается — списали 300 мл из
+        // бутылки, а количество осталось прежним, — и график по штукам молчал
+        // бы обо всём расходе. Остатки по свойствам собираются отдельно.
+        $series = [];
+        $lastByProperty = [];
+
         foreach ($rows as $row) {
             $payload = $row->payload ?? [];
-            $qty = $payload['after'] ?? $payload['snapshot']['quantity'] ?? null;
+
+            $propertyId = $payload['property_id'] ?? null;
+
+            if ($propertyId !== null && isset($payload['property_after'])) {
+                $propertyId = (int) $propertyId;
+                $after = (float) $payload['property_after'];
+
+                if (($lastByProperty[$propertyId] ?? null) !== $after) {
+                    $lastByProperty[$propertyId] = $after;
+                    $series[$propertyId]['title'] = $payload['property_title'] ?? (string) $propertyId;
+                    $series[$propertyId]['points'][] = [
+                        'at'  => (string) $row->created_at,
+                        'qty' => $after,
+                    ];
+                }
+
+                // Дальше идёт остаток штук по той же записи: у частичного
+                // списания их почти нет, и в общий ряд они бы только мешали.
+                $qty = $payload['after'] ?? null;
+            } else {
+                $qty = $payload['after'] ?? $payload['snapshot']['quantity'] ?? null;
+            }
 
             if ($qty === null) {
                 continue;
@@ -186,7 +214,20 @@ class AuditLogController extends Controller
             ];
         }
 
-        return response()->json(['data' => $points]);
+        $propertySeries = [];
+
+        foreach ($series as $propertyId => $row) {
+            $propertySeries[] = [
+                'property_id' => $propertyId,
+                'title'       => $row['title'],
+                'points'      => $row['points'],
+            ];
+        }
+
+        return response()->json([
+            'data'   => $points,
+            'series' => $propertySeries,
+        ]);
     }
 
     /**
