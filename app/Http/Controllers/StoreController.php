@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\Warehouse;
 use Com\Tecnick\Barcode\Barcode;
 use App\Services\AccessService;
+use App\Services\ImageAttach;
 use App\Services\StorageContentsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
@@ -68,15 +69,19 @@ class StoreController extends Controller
         return response()->json(['data' => $contents->allItemsOf($model)]);
     }
 
-    public function post(StoreStoreRequest $request): JsonResponse
+    public function post(StoreStoreRequest $request, ImageAttach $images): JsonResponse
     {
         $data = $request->validated();
 
         abort_unless($this->canCreateStore($data), 403, __('Нет права на создание в этом складе'));
 
-        $store = DB::transaction(function () use ($data) {
+        $store = DB::transaction(function () use ($data, $images) {
             $code = isset($data['code']) ? trim((string) $data['code']) : '';
-            unset($data['code']);
+
+            // Картинки из данных модели идут в отдельную переменную: с ключом
+            // в $data их сняли бы вместе с кодом, и привязывать было бы нечего.
+            $pendingImages = $data['images'] ?? [];
+            unset($data['code'], $data['images']);
 
             $store = Store::create($data);
 
@@ -88,6 +93,10 @@ class StoreController extends Controller
             } else {
                 $this->bindCodeToStore($store, $code);
             }
+
+            // Картинки грузились заранее, пока склада ещё не было. Привязка
+            // в той же транзакции, что и сам склад.
+            $images->attachTo($store, $pendingImages);
 
             return $store;
         });

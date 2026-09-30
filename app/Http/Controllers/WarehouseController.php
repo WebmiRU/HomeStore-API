@@ -7,6 +7,8 @@ use App\Http\Requests\UpdateWarehouseRequest;
 use App\Http\Resources\WarehouseResource;
 use App\Models\Warehouse;
 use App\Services\AccessService;
+use App\Services\ImageAttach;
+use Illuminate\Support\Facades\DB;
 use App\Services\StorageContentsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\ResourceCollection;
@@ -50,9 +52,18 @@ class WarehouseController extends Controller
         return response()->json(['data' => $contents->treeForWarehouse($model)]);
     }
 
-    public function post(StoreWarehouseRequest $request): JsonResponse
+    public function post(StoreWarehouseRequest $request, ImageAttach $images): JsonResponse
     {
-        $warehouse = Warehouse::create($request->validated());
+        $data = $request->validated();
+
+        $warehouse = DB::transaction(function () use ($data, $images) {
+            $warehouse = Warehouse::create($data);
+
+            // Картинки грузились заранее, пока хранилища ещё не было.
+            $images->attachTo($warehouse, $data['images'] ?? []);
+
+            return $warehouse;
+        });
 
         return (new WarehouseResource($warehouse->load(['user', 'images'])))
             ->response()

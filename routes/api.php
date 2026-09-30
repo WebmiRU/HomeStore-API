@@ -204,6 +204,8 @@ Route::prefix('item')->controller(ItemController::class)->group(function (): voi
 });
 
 Route::prefix('image')->controller(ImageController::class)->group(function (): void {
+    // Загрузка без привязки: нужна форме создания, где сущности ещё нет.
+    Route::post('/', 'storeUnattached');
     Route::post('item/{model}', 'storeForItem');
     Route::post('store/{model}', 'storeForStore');
     Route::post('warehouse/{model}', 'storeForWarehouse');

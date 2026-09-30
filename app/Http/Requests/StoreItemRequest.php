@@ -79,6 +79,13 @@ class StoreItemRequest extends FormRequest
             // кончиться по любому из отмеченных свойств.
             'partial_properties.*.is_full_reason' => ['sometimes', 'boolean'],
             'partial_properties.*.sort'            => ['sometimes', 'integer'],
+
+            // Картинки, загруженные до создания сущности. Клиент грузит их
+            // заранее — сущности ещё нет, и привязать не к чему, — а здесь
+            // перечисляет, какие из загруженных принадлежат этой.
+            'images'                => ['sometimes', 'array', 'max:50'],
+            'images.*.id'           => ['required', 'integer', 'min:1'],
+            'images.*.alt'          => ['nullable', 'string', 'max:255'],
         ];
     }
 }

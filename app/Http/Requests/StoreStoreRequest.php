@@ -19,6 +19,11 @@ class StoreStoreRequest extends FormRequest
             'parent_id'   => ['nullable', 'integer', 'exists:store,id'],
             'warehouse_id'=> ['nullable', 'integer', 'exists:warehouse,id'],
             'code'        => ['nullable', 'string', 'min:8', 'max:256'],
+            // Картинки, загруженные до создания: сущности ещё нет, привязать
+            // не к чему, и файл ждёт своего владельца до сохранения.
+            'images'                => ['sometimes', 'array', 'max:50'],
+            'images.*.id'           => ['required', 'integer', 'min:1'],
+            'images.*.alt'          => ['nullable', 'string', 'max:255'],
         ];
     }
 }

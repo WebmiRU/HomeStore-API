@@ -14,13 +14,39 @@ use App\Models\Store;
 use App\Models\Warehouse;
 use App\Services\AccessService;
 use App\Services\AuditLogService;
+use App\Services\ImageAttach;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ImageController extends Controller
 {
-    public function __construct(private readonly AuditLogService $logs)
+    public function __construct(
+        private readonly AuditLogService $logs,
+        private readonly ImageAttach $attach,
+    ) {
+    }
+
+    /**
+     * Загрузка без привязки — для формы создания, где сущности ещё нет.
+     *
+     * Картинка появляется в базе сразу и ждёт, кому принадлежит: при
+     * сохранении нового предмета, склада или хранилища клиент присылает её
+     * вместе с остальным, и она привязывается. Если человек передумал и
+     * закрыл форму, картинка остаётся ни с чем — такие убираются обслуживанием
+     * отдельно.
+     *
+     * Владельца у картинки нет и не бывает: файлы общие и дедуплицируются по
+     * содержимому, поэтому «загруженная здесь» и «та же самая, загруженная
+     * раньше» — одна и та же строка. Привязать её к сущности вправе любой,
+     * у кого есть права на эту сущность, — ровно как если бы он загрузил тот
+     * же файл, уже зная её id.
+     */
+    public function storeUnattached(StoreImageRequest $request): JsonResponse
     {
+        $image = Image::fromUploadedFile($request->file('file'));
+
+        return (new ImageResource($image))->response()->setStatusCode(201);
     }
 
     public function storeForItem(StoreImageRequest $request, Item $model): JsonResponse
@@ -135,7 +161,7 @@ class ImageController extends Controller
     {
         $image = Image::fromUploadedFile($request->file('file'));
 
-        [$pivot, $key] = $this->pivotFor($model);
+        [$pivot, $key] = $this->attach->pivotFor($model);
 
         $existing = DB::table($pivot)
             ->where($key, $model->id)
@@ -152,33 +178,10 @@ class ImageController extends Controller
 
         $model->images()->attach($image->id, [
             'alt'    => null,
-            'weight' => $this->nextWeight($model),
+            'weight' => $this->attach->nextWeight($model),
         ]);
 
         return [$model->images()->where('image.id', $image->id)->first(), null];
-    }
-
-    private function nextWeight(ImageOwner $model): int
-    {
-        [, $key] = $this->pivotFor($model);
-
-        return (int) $model->images()->max('image_m2m_' . rtrim($key, '_id') . '.weight') + 1;
-    }
-
-    /**
-     * Таблица связей с картинками и её ключ.
-     *
-     * Список здесь, а не троичные условия по instanceof: сущностей с
-     * фотографиями стало три, и каждое новое место требовало бы править ещё
-     * четыре места в контроллере.
-     */
-    private function pivotFor(ImageOwner $model): array
-    {
-        return match (true) {
-            $model instanceof Item      => ['image_m2m_item', 'item_id'],
-            $model instanceof Store     => ['image_m2m_store', 'store_id'],
-            default                     => ['image_m2m_warehouse', 'warehouse_id'],
-        };
     }
 
     public function updateAltForItem(UpdateImageAltRequest $request, Item $model, Image $image): JsonResponse

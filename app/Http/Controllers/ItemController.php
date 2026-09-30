@@ -38,6 +38,7 @@ class ItemController extends Controller
         private readonly ItemPropertyService $propertyService,
         private readonly CodedQuantity $codedQuantity,
         private readonly PartialWriteoff $partialWriteoff,
+        private readonly \App\Services\ImageAttach $images,
     ) {}
 
     public function index(Request $request): ResourceCollection
@@ -114,6 +115,12 @@ class ItemController extends Controller
                 $this->partialWriteoff->syncSettings($item, $partial);
             }
 
+            // Картинки грузились заранее, пока предмета ещё не было, и ждали
+            // его id. Привязка — в той же транзакции: предмет без части своих
+            // фотографий получился бы после ошибки, и человек увидел бы
+            // неполную карточку без всяких объяснений.
+            $this->images->attachTo($item, $data['images'] ?? []);
+
             return $item;
         });
 
@@ -131,7 +138,7 @@ class ItemController extends Controller
             $codes = $this->normalizeCodes($data);
             $properties = $this->normalizeProperties($data);
             $partial = $this->normalizePartialProperties($data);
-            unset($data['code'], $data['codes'], $data['properties'], $data['partial_properties']);
+            unset($data['code'], $data['codes'], $data['properties'], $data['partial_properties'], $data['images']);
 
             // Количество помеченного предмета сервер считает сам по кодам.
             // Снимаем присланное ДО update: иначе оно записалось бы в базу и
