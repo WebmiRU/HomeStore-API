@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\AuditLogResource;
+use App\Enums\AuditAction;
 use App\Models\AuditLog;
+use App\Models\Property;
 use App\Support\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -135,6 +137,78 @@ class AuditLogController extends Controller
             : $rows->sortByDesc('count');
 
         return response()->json(['data' => $rows->values()]);
+    }
+
+    /**
+     * Расход по расходуемым свойствам за период.
+     *
+     * Журнал показывает каждое движение отдельной строкой, а человек спросит
+     * «сколько масла списали за неделю» — и не найдёт: суммы по свойствам нигде
+     * нет, а сложить две сотни строк в уме не выйдет.
+     *
+     * Текущий остаток сюда не входит: он и так есть в карточке, и считать его
+     * здесь — значит держать второе место, где он живёт.
+     *
+     * @return array<int, array{property_id: int, property_title: string|null, unit_short: string|null, writeoff: float, replenish: float}>
+     */
+    public function partialSummary(Request $request): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'entity_type' => ['required', 'string', 'in:' . implode(',', self::ENTITY_TYPES)],
+            'entity_id'   => ['required', 'integer', 'min:1'],
+            'date_from'   => ['sometimes', 'date', 'before_or_equal:date_to'],
+            'date_to'     => ['sometimes', 'date', 'after_or_equal:date_from'],
+        ])->validated();
+
+        $query = AuditLog::query();
+        $this->applyScope($query, $request);
+
+        $rows = $query
+            ->whereIn('action', ['operation.replenish', 'operation.writeoff'])
+            ->whereNotNull('payload->property_id')
+            ->orderBy('id')
+            ->get(['action', 'payload']);
+
+        $totals = [];
+        $titles = [];
+
+        foreach ($rows as $row) {
+            $payload = $row->payload ?? [];
+            $propertyId = (int) ($payload['property_id'] ?? 0);
+
+            if ($propertyId <= 0) {
+                continue;
+            }
+
+            $amount = (float) ($payload['amount'] ?? 0);
+            // action — enum, и сравнение со строкой всегда было ложным: любая
+            // сумма попадала в пополнение, а списание выглядело как приход.
+            $key = $row->action === AuditAction::OperationWriteoff ? 'writeoff' : 'replenish';
+
+            $totals[$propertyId][$key] = ($totals[$propertyId][$key] ?? 0.0) + $amount;
+            $titles[$propertyId] ??= $payload['property_title'] ?? null;
+        }
+
+        $units = Property::query()
+            ->with('unit')
+            ->whereIn('id', array_keys($totals))
+            ->get()
+            ->keyBy('id');
+
+        $summary = [];
+
+        foreach ($totals as $propertyId => $sums) {
+            $summary[] = [
+                'property_id'    => (int) $propertyId,
+                'property_title' => $units[$propertyId]->title ?? $titles[$propertyId] ?? null,
+                'unit_short'     => $units[$propertyId]->unit?->title_short,
+                'unit_full'      => $units[$propertyId]->unit?->title_full,
+                'writeoff'       => $sums['writeoff'] ?? 0.0,
+                'replenish'      => $sums['replenish'] ?? 0.0,
+            ];
+        }
+
+        return response()->json(['data' => $summary]);
     }
 
     /**

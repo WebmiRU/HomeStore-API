@@ -67,6 +67,7 @@ Route::prefix('audit-log')->controller(AuditLogController::class)->group(functio
     Route::get('/', 'index');
     Route::get('stats', 'stats');
     Route::get('balance', 'balance');
+    Route::get('partial-summary', 'partialSummary');
 });
 
 // Каталог предметов. Набор свойств у категории вычисляется по уже

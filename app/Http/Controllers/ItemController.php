@@ -72,9 +72,21 @@ class ItemController extends Controller
             $query->where('vendor_id', $request->integer('vendor_id'));
         }
 
-        return ItemResource::collection(
-            $query->orderByDesc('id')->paginate($request->integer('per_page', self::PER_PAGE))
-        );
+        $paged = $query->orderByDesc('id')->paginate($request->integer('per_page', self::PER_PAGE));
+
+        // Остатки расходуемых свойств для всей страницы сразу: по одному на
+        // предмет вышло бы три запроса на строку списка, а колонка
+        // «Количество» у такого предмета показывает и штуки, и запас по
+        // свойствам. Считается здесь, потому что ресурс без подготовленных
+        // данных сошёл бы в ту же порчу на каждом предмете по отдельности.
+        $totals = app(\App\Services\PartialWriteoff::class)
+            ->totalsForItems($paged->getCollection()->modelKeys());
+
+        foreach ($paged->getCollection() as $item) {
+            $item->setRelation('partialStock', $totals[$item->id] ?? []);
+        }
+
+        return ItemResource::collection($paged);
     }
 
     public function get(Item $model): ItemResource

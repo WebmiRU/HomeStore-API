@@ -95,9 +95,12 @@ class ItemResource extends JsonResource
             // Расход частями: по каждому расходуемому свойству — норма на
             // штуку, сколько осталось внутри текущей штуки и сколько всего с
             // учётом целых штук.
-            'partial' => $this->whenLoaded('partialWriteoffProperties', function (): array {
-                return $this->partialWriteoffBlock();
-            }),
+            /*
+             * Два источника, а не один: карточка приносит настройки предмета и
+             * считает остаток сама, а список получает готовые остатки на всю
+             * страницу — иначе на каждый предмет ушло бы три запроса.
+             */
+            'partial' => $this->partialRows(),
         ];
     }
 
@@ -110,6 +113,53 @@ class ItemResource extends JsonResource
      * меняется вместе с количеством и нормой, и хранить его отдельно значило
      * бы держать вторую копию одного и того же.
      */
+    private function partialRows(): array
+    {
+        if ($this->resource->relationLoaded('partialStock')) {
+            return $this->partialStockBlock();
+        }
+
+        if (! $this->resource->relationLoaded('partialWriteoffProperties')) {
+            return [];
+        }
+
+        return $this->partialWriteoffBlock();
+    }
+
+    /**
+     * Блок остатков, посчитанный для страницы списка заранее.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function partialStockBlock(): array
+    {
+        // Единица свойства нужна, чтобы подписать остаток: «1800 мл» и «1800»
+        // говорят разное, а в списке предметов колонки с единицами нет.
+        $titles = Property::query()
+            ->with('unit')
+            ->whereIn('id', array_keys((array) $this->resource->getRelation('partialStock')))
+            ->get()
+            ->keyBy('id');
+
+        $rows = [];
+
+        foreach ((array) $this->resource->getRelation('partialStock') as $propertyId => $row) {
+            $property = $titles[(int) $propertyId] ?? null;
+
+            $rows[] = [
+                'property_id'    => (int) $propertyId,
+                'property_title' => $property?->title ?? (string) $propertyId,
+                'unit_short'     => $property?->unit?->title_short,
+                'unit_full'      => $property?->unit?->title_full,
+                'norm'           => $row['norm'],
+                'remaining'      => $row['remaining'],
+                'total'          => $row['total'],
+            ];
+        }
+
+        return $rows;
+    }
+
     private function partialWriteoffBlock(): array
     {
         $partial = app(PartialWriteoff::class);
@@ -127,9 +177,13 @@ class ItemResource extends JsonResource
 
             $remaining = $partial->remaining($this->resource, $setting->property_id, $norm);
 
+            $property = Property::with('unit')->find((int) $setting->property_id);
+
             $rows[] = [
                 'property_id'     => $setting->property_id,
-                'property_title'  => Property::find((int) $setting->property_id)?->title,
+                'property_title'  => $property?->title,
+                'unit_short'      => $property?->unit?->title_short,
+                'unit_full'       => $property?->unit?->title_full,
                 'step'            => (float) $setting->step,
                 'is_full_reason'  => (bool) $setting->is_full_reason,
                 'sort'            => (int) $setting->sort,

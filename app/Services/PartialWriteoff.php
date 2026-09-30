@@ -112,6 +112,78 @@ class PartialWriteoff
     }
 
     /** Сколько всего осталось по свойству, со всеми целыми штуками. */
+    /**
+     * Остатки расходуемых свойств сразу по многим предметам.
+     *
+     * Для списка предметов: считать остатки по одному значит сделать три запроса
+     * на предмет, а на странице их 15–20. Здесь три запроса на всю страницу,
+     * и формула та же, что у одиночного total — иначе в списке и в карточке
+     * показывались бы разные числа.
+     *
+     * @param  array<int, int>  $itemIds
+     * @return array<int, array<int, array{total: float, remaining: float, norm: float}>>
+     */
+    public function totalsForItems(array $itemIds): array
+    {
+        $itemIds = array_values(array_unique(array_map('intval', $itemIds)));
+
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $settings = DB::table('item_partial_property')
+            ->whereIn('item_id', $itemIds)
+            ->orderBy('sort')
+            ->get();
+
+        if ($settings->isEmpty()) {
+            return [];
+        }
+
+        $propertyIds = $settings->pluck('property_id')->map(fn ($id) => (int) $id)->unique()->values();
+
+        $rows = [];
+        $items = [];
+
+        foreach (Item::query()->whereIn('id', $itemIds)->get(['id', 'quantity']) as $item) {
+            $items[(int) $item->id] = $item;
+        }
+
+        // Норма и остаток — по два запроса на страницу, а не на предмет.
+        foreach (DB::table('item_property')->whereIn('item_id', $itemIds)->whereIn('property_id', $propertyIds)->get() as $row) {
+            $rows[(int) $row->item_id][(int) $row->property_id] = ['norm' => (float) $row->value];
+        }
+
+        foreach (ItemPartialRemaining::query()->whereIn('item_id', $itemIds)->get() as $row) {
+            $rows[(int) $row->item_id][(int) $row->property_id]['remaining'] = (float) $row->remaining;
+        }
+
+        $out = [];
+
+        foreach ($settings as $setting) {
+            $itemId = (int) $setting->item_id;
+            $propertyId = (int) $setting->property_id;
+            $norm = $rows[$itemId][$propertyId]['norm'] ?? null;
+
+            // Без нормы расходовать нечего — та же причина, что и в карточке.
+            if ($norm === null || $itemId === 0) {
+                continue;
+            }
+
+            $remaining = $rows[$itemId][$propertyId]['remaining'] ?? $norm;
+            $item = $items[$itemId] ?? null;
+            $quantity = $item === null ? 1 : (int) ($item->quantity ?? 1);
+
+            $out[$itemId][$propertyId] = [
+                'norm'      => $norm,
+                'remaining' => $remaining,
+                'total'     => $quantity <= 0 ? 0.0 : ($quantity - 1) * $norm + max(0.0, $remaining),
+            ];
+        }
+
+        return $out;
+    }
+
     public function total(Item $item, int $propertyId, float $norm, ?int $quantity = null): float
     {
         $quantity = $quantity ?? (int) ($item->quantity ?? 1);
