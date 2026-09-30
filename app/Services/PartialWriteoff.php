@@ -184,6 +184,29 @@ class PartialWriteoff
         return $out;
     }
 
+    /**
+     * Сколько штук помещается в запас по одной норме.
+     *
+     * Считается делением с остатком, а не через `ceil(запас / норма − допуск)`.
+     * Допуск здесь маскировал ошибку, а не гасил её: 40 001 мл при норме
+     * 10 000 — это четыре целые штуки и миллилитр в пятой, то есть пять. С
+     * вычитанием 1e-4 из 4.0001 получалось ровно 4, и чем крупнее числа, тем
+     * сильнее съедалась целая штука. Для целых величин деление точно, а
+     * остаток считается вычитанием: счёт от деления с остатком у дробных норм
+     * не определён.
+     */
+    public function piecesInStock(float $stock, float $norm): int
+    {
+        if ($stock <= 0 || $norm <= 0) {
+            return 0;
+        }
+
+        $whole = (int) floor($stock / $norm);
+        $rest = $stock - $whole * $norm;
+
+        return $rest > 0 ? $whole + 1 : $whole;
+    }
+
     public function total(Item $item, int $propertyId, float $norm, ?int $quantity = null): float
     {
         $quantity = $quantity ?? (int) ($item->quantity ?? 1);
@@ -336,7 +359,7 @@ class PartialWriteoff
             }
 
             $reasons += 1;
-            $held = (int) ceil(max(0.0, $stocks[$id]) / $own - self::TOLERANCE);
+            $held = $this->piecesInStock(max(0.0, $stocks[$id]), $own);
             $quantity = max($quantity, $held);
         }
 
@@ -470,7 +493,7 @@ class PartialWriteoff
         $stock = $quantity <= 0 ? 0.0 : ($quantity - 1) * $oldNorm + max(0.0, $remaining);
 
         if ($quantity > 0 && $mode === 'recalculate') {
-            $quantity = (int) ceil(max(0.0, $stock) / $newNorm - self::TOLERANCE);
+            $quantity = $this->piecesInStock(max(0.0, $stock), $newNorm);
             $remaining = $this->clampToNorm($stock - ($quantity - 1) * $newNorm, $newNorm);
         } else {
             // Штуки прежние, а остаток упирается в новую норму: он и есть
@@ -557,7 +580,7 @@ class PartialWriteoff
             $held[$propertyId] = $quantity <= 0
                 ? 0
                 : ($mode === 'recalculate'
-                    ? (int) ceil($stocks[$propertyId] / $norms[$propertyId] - self::TOLERANCE)
+                    ? $this->piecesInStock($stocks[$propertyId], $norms[$propertyId])
                     : $quantity);
         }
 

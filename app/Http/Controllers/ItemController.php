@@ -684,7 +684,7 @@ class ItemController extends Controller
 
             $norm = (float) $this->partialWriteoff->norm($model, $propertyId);
             $total = ($quantity - 1) * $norm + $remaining;
-            $held = max($held, (int) ceil($total / $norm - PartialWriteoff::TOLERANCE));
+            $held = max($held, $this->partialWriteoff->piecesInStock($total, $norm));
         }
 
         if ($quantity !== $held) {
@@ -771,7 +771,7 @@ class ItemController extends Controller
          * держит другое свойство, — а здесь ловим только грубое: меньше
          * заявленного товар тем более не поместится.
          */
-        $fits = (int) ceil(max(0.0, $total) / $norm - PartialWriteoff::TOLERANCE);
+        $fits = $this->partialWriteoff->piecesInStock(max(0.0, $total), $norm);
 
         if ($quantity < $fits) {
             throw ValidationException::withMessages([
