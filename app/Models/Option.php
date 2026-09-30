@@ -23,7 +23,6 @@ class Option extends Model
         'menu_hidden',
         'operation_mode',
         'locale',
-        'show_code_block',
         'remember_operation_mode',
         'theme',
         'accent',
@@ -32,7 +31,6 @@ class Option extends Model
     protected $casts = [
         'menu_order'      => 'array',
         'menu_hidden'     => 'array',
-        'show_code_block' => 'boolean',
         'remember_operation_mode' => 'boolean',
     ];
 

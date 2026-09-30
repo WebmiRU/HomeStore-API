@@ -76,9 +76,6 @@ class OptionService
                 'locale'          => in_array($data['locale'] ?? null, Option::locales(), true)
                     ? $data['locale']
                     : $current['locale'],
-                'show_code_block' => array_key_exists('show_code_block', $data)
-                    ? (bool) $data['show_code_block']
-                    : $current['show_code_block'],
                 'remember_operation_mode' => array_key_exists('remember_operation_mode', $data)
                     ? (bool) $data['remember_operation_mode']
                     : $current['remember_operation_mode'],
@@ -109,7 +106,6 @@ class OptionService
             'menu_hidden'     => [],
             'operation_mode'  => Option::MODE_SEARCH,
             'locale'          => Option::LOCALE_RU,
-            'show_code_block' => true,
             'remember_operation_mode' => true,
             'theme'          => Option::THEME_SYSTEM,
             'accent'         => Option::ACCENT_BLUE,
@@ -130,7 +126,6 @@ class OptionService
             'locale'          => in_array($option->locale, Option::locales(), true)
                 ? $option->locale
                 : Option::LOCALE_RU,
-            'show_code_block' => (bool) $option->show_code_block,
             'remember_operation_mode' => (bool) $option->remember_operation_mode,
             'theme'          => in_array($option->theme, Option::themes(), true)
                 ? $option->theme

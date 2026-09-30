@@ -46,7 +46,6 @@ class UpdateOptionRequest extends FormRequest
 
             'accent'          => ['sometimes', 'string', Rule::in(Option::accents())],
 
-            'show_code_block' => ['sometimes', 'boolean'],
 
             'remember_operation_mode' => ['sometimes', 'boolean'],
         ];
@@ -66,7 +65,6 @@ class UpdateOptionRequest extends FormRequest
             'menu_hidden.*.max'   => __('Ключ пункта меню длиннее 64 символов — такого быть не должно.'),
             'menu_hidden.*.string' => __('Ключ пункта меню — строка.'),
             'operation_mode.in'   => __('Режим работы может быть только «Поиск», «Пополнение» или «Списание».'),
-            'show_code_block.boolean' => __('Показывать блок «Код» — да или нет.'),
             'remember_operation_mode.boolean' => __('Запоминать режим работы — да или нет.'),
             'theme.in'          => __('Тема может быть только «Тёмная», «Светлая» или «Как в системе».'),
             'accent.in'         => __('Акцент может быть только «Зелёный», «Пурпурный», «Синий» или «Янтарный».'),
