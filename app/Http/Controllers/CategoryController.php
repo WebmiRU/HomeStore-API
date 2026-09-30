@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Http\Resources\CategoryResource;
+use App\Services\ImageAttach;
 use App\Http\Resources\PropertyResource;
 use App\Models\Category;
 use App\Services\ItemPropertyService;
@@ -17,7 +18,7 @@ class CategoryController extends Controller
     public function index(): ResourceCollection
     {
         return CategoryResource::collection(
-            Category::with(['parent', 'user'])
+            Category::with(['parent', 'user', 'images'])
                 ->withCount('items')
                 ->orderBy('id')
                 ->paginate()
@@ -34,13 +35,13 @@ class CategoryController extends Controller
         // Счётчик предметов здесь тоже нужен: список категорий показывается
         // деревом, и без него в строке нечего было бы написать.
         return CategoryResource::collection(
-            Category::with('parent')->withCount('items')->orderBy('id')->get()
+            Category::with(['parent', 'images'])->withCount('items')->orderBy('id')->get()
         );
     }
 
     public function get(Category $model): CategoryResource
     {
-        return new CategoryResource($model->load(['parent', 'user'])->loadCount('items'));
+        return new CategoryResource($model->load(['parent', 'user', 'images'])->loadCount('items'));
     }
 
     /**
@@ -52,24 +53,37 @@ class CategoryController extends Controller
         return PropertyResource::collection($service->forCategory($model));
     }
 
-    public function post(StoreCategoryRequest $request): JsonResponse
+    public function post(StoreCategoryRequest $request, ImageAttach $images): JsonResponse
     {
-        $category = Category::create($request->validated());
+        $data = $request->safe()->except('images');
 
-        return (new CategoryResource($category->load(['parent', 'user'])->loadCount('items')))
+        // Запись категории, привязка фотографий и журнал — одна транзакция:
+        // обрыв посередине оставил бы категорию без картинок, а в журнале —
+        // запись о действии, которого не было.
+        $category = DB::transaction(function () use ($data, $images, $request) {
+            $category = Category::create($data);
+            $images->attachTo($category, $request->validated('images', []));
+
+            return $category;
+        });
+
+        return (new CategoryResource($category->load(['parent', 'user', 'images'])->loadCount('items')))
             ->response()
             ->setStatusCode(201);
     }
 
-    public function put(UpdateCategoryRequest $request, Category $model): CategoryResource
+    public function put(UpdateCategoryRequest $request, Category $model, ImageAttach $images): CategoryResource
     {
-        $data = $request->validated();
+        $data = $request->safe()->except('images');
 
         $this->guardParent($data['parent_id'] ?? $model->parent_id, $model);
 
-        $model->update($data);
+        DB::transaction(function () use ($model, $data, $images, $request): void {
+            $model->update($data);
+            $images->attachTo($model, $request->validated('images', []));
+        });
 
-        return new CategoryResource($model->load(['parent', 'user'])->loadCount('items'));
+        return new CategoryResource($model->load(['parent', 'user', 'images'])->loadCount('items'));
     }
 
     /**

@@ -28,6 +28,9 @@ class CategoryResource extends JsonResource
             // категорий в счётчик не входят — иначе число у родителя всегда
             // было бы больше суммы по ветвям, и его нельзя было бы сверить.
             'items_count'   => $this->whenCounted('items'),
+            // Фотографии: список и «Каталог» показывают категорию одним взглядом,
+            // и без картинки она там была просто строкой текста.
+            'images'        => ImageResource::collection($this->whenLoaded('images')),
             'created_at'    => $this->created_at,
             'updated_at'    => $this->updated_at,
         ];

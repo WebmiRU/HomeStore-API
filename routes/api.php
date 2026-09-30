@@ -211,15 +211,19 @@ Route::prefix('image')->controller(ImageController::class)->group(function (): v
     Route::post('item/{model}', 'storeForItem');
     Route::post('store/{model}', 'storeForStore');
     Route::post('warehouse/{model}', 'storeForWarehouse');
+    Route::post('category/{model}', 'storeForCategory');
     Route::patch('item/{model}/image/{image}/alt', 'updateAltForItem');
     Route::patch('store/{model}/image/{image}/alt', 'updateAltForStore');
     Route::patch('warehouse/{model}/image/{image}/alt', 'updateAltForWarehouse');
+    Route::patch('category/{model}/image/{image}/alt', 'updateAltForCategory');
     Route::post('item/{model}/image/reorder', 'reorderForItem');
     Route::post('store/{model}/image/reorder', 'reorderForStore');
     Route::post('warehouse/{model}/image/reorder', 'reorderForWarehouse');
+    Route::post('category/{model}/image/reorder', 'reorderForCategory');
     Route::delete('item/{model}/image/{image}', 'removeForItem');
     Route::delete('store/{model}/image/{image}', 'removeForStore');
     Route::delete('warehouse/{model}/image/{image}', 'removeForWarehouse');
+    Route::delete('category/{model}/image/{image}', 'removeForCategory');
 });
 
 Route::prefix('label')->controller(LabelController::class)->group(function (): void {

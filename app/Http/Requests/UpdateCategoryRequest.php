@@ -18,6 +18,11 @@ class UpdateCategoryRequest extends FormRequest
     {
         return [
             'title'     => ['sometimes', 'string', 'max:500', $this->uniqueAmongSiblings()],
+            // Фотографии приходят вместе с категорией: завести её сразу с
+            // картинками, а не возвращаться за ними вторым заходом.
+            'images'        => ['sometimes', 'array', 'max:50'],
+            'images.*.id'   => ['required', 'integer', 'min:1'],
+            'images.*.alt'  => ['nullable', 'string', 'max:255'],
             'parent_id' => [
                 'nullable',
                 'integer',

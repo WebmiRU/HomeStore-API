@@ -84,7 +84,17 @@ class ImageAttach
         return match (true) {
             $model instanceof \App\Models\Item      => ['image_m2m_item', 'item_id'],
             $model instanceof \App\Models\Store     => ['image_m2m_store', 'store_id'],
-            default                                  => ['image_m2m_warehouse', 'warehouse_id'],
+            $model instanceof \App\Models\Warehouse => ['image_m2m_warehouse', 'warehouse_id'],
+            $model instanceof \App\Models\Category  => ['image_m2m_category', 'category_id'],
+            /*
+             * Без ветки «по умолчанию»: новая сущность с фотографиями молча
+             * уехала бы в связь склада, и загрузка падала бы с «нет таблицы
+             * image_m2m_warehouse» — ошибка в чужом месте и не о том, что
+             * забыли добавить строку здесь.
+             */
+            default => throw new \InvalidArgumentException(
+                'Не задана связь изображений для ' . $model::class
+            ),
         };
     }
 }

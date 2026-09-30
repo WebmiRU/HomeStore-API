@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateImageAltRequest;
 use App\Http\Resources\ImageResource;
 use App\Models\Image;
 use App\Models\ImageOwner;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\Store;
 use App\Models\Warehouse;
@@ -210,6 +211,66 @@ class ImageController extends Controller
         });
 
         return (new ImageResource($this->withPivot($model, $image)))->response();
+    }
+
+    public function storeForCategory(StoreImageRequest $request, Category $model): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        // Запись картинки, привязка и журнал — одна транзакция: обрыв
+        // посередине оставил бы в базе картинку без привязки, а в журнале —
+        // запись о действии, которого не было.
+        [$image, $duplicates] = DB::transaction(function () use ($request, $model): array {
+            [$image, $duplicates] = $this->store($request, $model);
+
+            // Повтор не пишем в журнал: ничего не изменилось, а запись
+            // «фото добавлено» была бы враньём.
+            if ($duplicates === null) {
+                $this->logImage('category', AuditAction::ImageAttached, $model, $image);
+            }
+
+            return [$image, $duplicates];
+        });
+
+        return $this->uploadResponse($image, $duplicates);
+    }
+
+    public function updateAltForCategory(UpdateImageAltRequest $request, Category $model, Image $image): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        DB::transaction(function () use ($model, $image, $request): void {
+            $model->images()->updateExistingPivot($image->id, ['alt' => $request->input('alt')]);
+            $this->logImage('category', AuditAction::ImageAltUpdated, $model, $image, [
+                'alt' => $request->input('alt'),
+            ]);
+        });
+
+        return (new ImageResource($this->withPivot($model, $image)))->response();
+    }
+
+    public function reorderForCategory(ReorderImagesRequest $request, Category $model): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        DB::transaction(function () use ($model, $request): void {
+            $this->reorder($model, $request->validated('ids'));
+            $this->logImage('category', AuditAction::ImageReordered, $model, null, [
+                'ids' => $request->validated('ids'),
+            ]);
+        });
+
+        return response()->json(['ids' => $request->validated('ids')]);
+    }
+
+    public function removeForCategory(Category $model, Image $image): JsonResponse
+    {
+        $this->requireEdit($model);
+
+        $model->images()->detach($image->id);
+        $this->logImage('category', AuditAction::ImageDetached, $model, $image);
+
+        return response()->json(null, 204);
     }
 
     public function reorderForItem(ReorderImagesRequest $request, Item $model): JsonResponse

@@ -6,7 +6,7 @@ use App\Models\Concerns\OwnedByUser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Category extends Model
+class Category extends Model implements ImageOwner
 {
     use SoftDeletes;
     use OwnedByUser;
@@ -22,6 +22,20 @@ class Category extends Model
     public function user()
     {
         return $this->belongsTo(UserProfile::class, 'user_id');
+    }
+
+    /**
+     * Фотографии категории.
+     *
+     * Порядок по весу, как у предметов и складов: он же показывается первым и
+     * в списке, и в «Каталоге», и вес назначается при загрузке.
+     */
+    public function images(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Image::class, 'image_m2m_category')
+            ->withPivot('image_id', 'category_id', 'alt', 'weight')
+            ->withTimestamps()
+            ->orderBy('image_m2m_category.weight');
     }
 
     /**
