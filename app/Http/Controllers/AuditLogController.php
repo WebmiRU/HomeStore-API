@@ -279,18 +279,68 @@ class AuditLogController extends Controller
         $lastByProperty = [];
         $titles = [];
 
+        /*
+         * События собираются вперемешку и только потом разбираются по времени:
+         * операции лежат в своих таблицах, а смена нормы — в журнале, и по
+         * отдельности каждая точка верна, а вместе они должны идти в порядке
+         * часов. Порядок по умолчанию брал норму первой, и кривая шла задом
+         * наперёд.
+         */
+        $events = [];
+
         foreach ($rows->groupBy('operation_id') as $operationRows) {
             $at = (string) $operationRows->first()->at;
+            $events[] = ['at' => $at, 'operation' => $operationRows];
+
+            $events[] = ['at' => $at, 'operation' => $operationRows];
+        }
+
+        // Смена нормы меняет запас, а операции за ней не стоит: никто ничего не
+        // принёс и не унёс. Без этой точки на графике был бы скачок без
+        // причины — ровно то, ради чего ряд переведён на операции.
+        foreach ($this->normChangeRows((int) $validated['entity_id'], $validated) as $at => $change) {
+            $events[] = ['at' => (string) $at, 'norm' => $change];
+        }
+
+        usort($events, fn (array $a, array $b): int => strcmp($a['at'], $b['at']));
+
+        // По ссылке: замыкание без & работает с копиями, и ряд свойств
+        // оставался пустым при вовсе непустых данных.
+        $addPropertyPoint = function (int $propertyId, ?string $title, string $at, float $qty) use (&$lastByProperty, &$titles, &$series): void {
+            // Повтор подряд идущих одинаковых значений: половина строк у
+            // расходуемого предмета — это другие свойства, и без проверки кривая
+            // дрожала бы туда-сюда без всякой причины.
+            if (($lastByProperty[$propertyId] ?? null) === $qty) {
+                return;
+            }
+
+            $lastByProperty[$propertyId] = $qty;
+            $titles[$propertyId] ??= $title;
+            $series[$propertyId]['points'][] = ['at' => $at, 'qty' => $qty];
+        };
+
+        foreach ($events as $event) {
+            $at = $event['at'];
+
+            if (isset($event['norm'])) {
+                $addPropertyPoint(
+                    (int) $event['norm']['property_id'],
+                    $event['norm']['property_title'] ?? null,
+                    $at,
+                    (float) $event['norm']['stock'],
+                );
+                continue;
+            }
 
             /*
              * Количество берётся по операции, а не по строке: одна операция по
              * предмету пишет столько строк, сколько у него расходуемых
-             * свойств, и количество меняется один раз. По строкам ряд
-             * «скакал» внутри одной операции — то самое, чего на графике быть не
-             * должно. Штуки списаны в строке, где quantity != 0; если предмет
-             * расходуется частями и штуки не двигались, берётся последняя
-             * строка операции.
+             * свойств, и количество меняется один раз. По строкам ряд «скакал»
+             * внутри одной операции — то самое, чего на графике быть не должно.
+             * Штуки списаны в строке, где quantity != 0; если предмет расходуется
+             * частями и штуки не двигались, берётся последняя строка операции.
              */
+            $operationRows = $event['operation'];
             $unitRow = $operationRows->firstWhere('quantity', '!=', 0) ?? $operationRows->last();
             $qtyBefore = $unitRow->qty_before === null ? null : (int) $unitRow->qty_before;
             $qtyAfter = $unitRow->qty_after === null ? null : (int) $unitRow->qty_after;
@@ -305,19 +355,7 @@ class AuditLogController extends Controller
                     continue;
                 }
 
-                $propertyId = (int) $row->property_id;
-                $after = (float) $row->property_after;
-
-                // Повтор подряд идущих одинаковых значений: половина строк у
-                // расходуемого предмета — это другие свойства, и без проверки
-                // кривая дрожала бы туда-сюда без всякой причины.
-                if (($lastByProperty[$propertyId] ?? null) === $after) {
-                    continue;
-                }
-
-                $lastByProperty[$propertyId] = $after;
-                $titles[$propertyId] ??= $row->property_title;
-                $series[$propertyId]['points'][] = ['at' => $at, 'qty' => $after];
+                $addPropertyPoint((int) $row->property_id, $row->property_title, $at, (float) $row->property_after);
             }
         }
 
@@ -335,6 +373,43 @@ class AuditLogController extends Controller
             'data'   => $points,
             'series' => $propertySeries,
         ]);
+    }
+
+    /**
+     * События смены нормы расходуемого свойства за период.
+     *
+     * Отдельный метод, а не ещё одна выборка в balance: ряд остатков читает
+     * операции, а норма меняется без операции, и смешивать два источника в
+     * одном месте значит потом не вспомнить, откуда взялась та или иная точка.
+     *
+     * @return array<string, array<string, mixed>>  ключ — дата, значение — данные события
+     */
+    private function normChangeRows(int $itemId, array $validated): array
+    {
+        $query = AuditLog::query()
+            ->where('action', AuditAction::ItemUpdated)
+            ->where('item_id', $itemId)
+            ->whereNotNull('payload->norm_change');
+
+        if (isset($validated['date_from'])) {
+            $query->where('created_at', '>=', $validated['date_from']);
+        }
+
+        if (isset($validated['date_to'])) {
+            $query->where('created_at', '<=', $validated['date_to']);
+        }
+
+        $rows = [];
+
+        foreach ($query->get(['created_at', 'payload']) as $row) {
+            $change = $row->payload['norm_change'] ?? null;
+
+            if (is_array($change) && isset($change['stock'])) {
+                $rows[(string) $row->created_at] = $change;
+            }
+        }
+
+        return $rows;
     }
 
     /**

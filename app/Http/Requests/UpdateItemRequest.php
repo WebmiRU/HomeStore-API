@@ -78,7 +78,15 @@ class UpdateItemRequest extends FormRequest
             // и пересчитать объём. Решение человека, а не сервера: по карточке
             // не видно, ошибка это ввода или ошибка прежнего учёта.
             'partial_norms'               => ['sometimes', 'array'],
-            'partial_norms.*'             => ['required', 'in:recalculate,keep'],
+            'partial_norms.*'             => ['required', 'in:recalculate,keep,custom'],
+
+            // Фактические остаток и число штук, вписанные человеком, когда оба
+            // готовых варианта непригодны (ошибся в нормах: 200 бутылок по
+            // 200 мл вместо 100 по 100). Сервер проверяет, что числа сходятся.
+            'partial_actual'                  => ['sometimes', 'array'],
+            'partial_actual.quantity'         => ['sometimes', 'integer', 'min:0'],
+            'partial_actual.properties'       => ['sometimes', 'array'],
+            'partial_actual.properties.*'     => ['required', 'numeric', 'min:0'],
         ];
     }
 }

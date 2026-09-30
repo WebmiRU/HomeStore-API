@@ -127,6 +127,41 @@ class InitialStock
      *
      * @return \App\Models\StockOperation|null
      */
+    /**
+     * Записать корректировку остатка фактическим.
+     *
+     * Отдельный метод рядом с приходом и правкой количества: все три — про
+     * движение остатка, но вызываются из разных мест и собирают строки по-
+     * разному. Пометка в комментарии объясняет, откуда операция: иначе в
+     * движениях видно списание, и человек решит, что что-то забрали со склада.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    public function recordCorrection(Item $item, array $rows, ?string $comment = null): \App\Models\StockOperation
+    {
+        if ($rows === []) {
+            throw new \InvalidArgumentException(__('Фактический остаток совпадает с тем, что уже заведено'));
+        }
+
+        // Смешанную правку (по штукам плюс, по свойствам минус) в один знак не
+        // свести, поэтому направление берётся по преобладающей дельте, а точные
+        // числа остаются в строках.
+        $spend = 0.0;
+        $fill = 0.0;
+
+        foreach ($rows as $row) {
+            $weight = (float) abs($row['amount'] ?? abs($row['delta'] ?? 0));
+            $isSpend = $row['is_writeoff'] ?? ((int) ($row['before'] ?? 0) > (int) ($row['after'] ?? 0));
+            $isSpend ? $spend += $weight : $fill += $weight;
+        }
+
+        return $this->operations->record(
+            $spend > $fill ? StockDirection::Writeoff : StockDirection::Replenish,
+            $comment ?? __('Корректировка'),
+            $rows,
+        );
+    }
+
     public function recordQuantityChange(Item $item, int $from, int $to, ?string $comment = null): ?\App\Models\StockOperation
     {
         if ($this->partial->settings($item)->isNotEmpty()) {

@@ -496,6 +496,109 @@ class PartialWriteoff
         return $this->norm($item, $propertyId);
     }
 
+    /**
+     * Что получится при смене норм сразу у нескольких свойств.
+     *
+     * Считается набором, а не по одному свойству, и это не удобство, а
+     * необходимость: число штук у предмета одно и считается оно как большее
+     * из отмеченных свойств. Пересчитать «Объём» отдельно от «Вес» значило бы
+     * показать человеку два несовместимых будущих и оставить ему выбор между
+     * величинами, которых одновременно не бывает.
+     *
+     * Запас в единицах измерения при смене нормы не меняется: норма — делитель,
+     * а не количество. Меняется либо число штук, либо сам запас, в зависимости
+     * от режима — поэтому оба и показываются.
+     *
+     * @param  array<int, float>  $changes  новая норма по каждому изменяемому свойству
+     * @return array{quantity: int, properties: array<int, array{stock: float, remaining: float}>}
+     */
+    public function previewNormChange(Item $item, array $changes, string $mode): array
+    {
+        $settings = $this->settings($item);
+        $quantity = (int) ($item->quantity ?? 1);
+        $remainders = $this->remainders($item, $settings);
+
+        /*
+         * Запас в единицах измерения сменой нормы не трогается: норма —
+         * делитель, а не количество. Считаем его один раз по старой норме, и
+         * дальше он служит основанием для обоих вариантов.
+         */
+        $stocks = [];
+        $norms = [];
+
+        foreach ($settings as $setting) {
+            $propertyId = (int) $setting->property_id;
+            $oldNorm = $this->norm($item, $propertyId);
+
+            if ($oldNorm === null || $oldNorm <= 0) {
+                continue;
+            }
+
+            $remaining = $remainders[$propertyId] ?? $oldNorm;
+            $stocks[$propertyId] = $quantity <= 0
+                ? 0.0
+                : ($quantity - 1) * $oldNorm + max(0.0, $remaining);
+            $norms[$propertyId] = (float) ($changes[$propertyId] ?? $oldNorm);
+        }
+
+        // Сколько штук набирается по каждому отмеченному свойству. Показателем
+        // пустого предмета считается и то свойство, которое в этом наборе не
+        // менялось: оно тоже держит предмет, и его вклад в число штук отменять
+        // нельзя.
+        $held = [];
+
+        foreach ($settings as $setting) {
+            $propertyId = (int) $setting->property_id;
+
+            if (! $setting->is_full_reason || ! isset($stocks[$propertyId])) {
+                continue;
+            }
+
+            $held[$propertyId] = $quantity <= 0
+                ? 0
+                : ($mode === 'recalculate'
+                    ? (int) ceil($stocks[$propertyId] / $norms[$propertyId] - self::TOLERANCE)
+                    : $quantity);
+        }
+
+        $newQuantity = $held === [] ? $quantity : max($held);
+
+        /*
+         * Сохранить штуки можно не всегда. Если остаток не помещается в них —
+         * например, 5 штук по 10 000 мл, когда на руках 4 500, — то «штуки
+         * прежние» означают не остаток прежним, а его раздувание с 4 500 до
+         * 40 000. Молча увеличивать запас нельзя, поэтому такой вариант
+         * помечается невозможным, и человек либо выбирает другой, либо вписывает
+         * фактические числа.
+         */
+        $fits = true;
+
+        foreach ($stocks as $propertyId => $stock) {
+            if ($newQuantity > 0 && $stock < ($newQuantity - 1) * $norms[$propertyId]) {
+                $fits = false;
+            }
+        }
+
+        $properties = [];
+
+        foreach ($stocks as $propertyId => $stock) {
+            $remainingNew = $newQuantity <= 0
+                ? 0.0
+                : $this->clampToNorm($stock - ($newQuantity - 1) * $norms[$propertyId], $norms[$propertyId]);
+
+            $properties[$propertyId] = [
+                'stock'     => $newQuantity <= 0 ? 0.0 : ($newQuantity - 1) * $norms[$propertyId] + $remainingNew,
+                'remaining' => $remainingNew,
+                'fits'      => $fits,
+            ];
+        }
+
+        return [
+            'quantity'   => max(0, $newQuantity),
+            'properties' => $properties,
+        ];
+    }
+
     public function resync(Item $item, Collection $settings): void
     {
         foreach ($settings as $setting) {

@@ -40,6 +40,7 @@ class ItemController extends Controller
         private readonly PartialWriteoff $partialWriteoff,
         private readonly \App\Services\ImageAttach $images,
         private readonly \App\Services\InitialStock $initialStock,
+        private readonly \App\Services\AuditLogService $logs,
     ) {}
 
     public function index(Request $request): ResourceCollection
@@ -161,6 +162,7 @@ class ItemController extends Controller
             // снимается вместе с прочими служебными полями — но сначала
             // читается, иначе к моменту проверки его уже не будет.
             $normDecisions = (array) ($data['partial_norms'] ?? []);
+            $actualBalance = (array) ($data['partial_actual'] ?? []);
 
             unset(
                 $data['code'],
@@ -169,6 +171,7 @@ class ItemController extends Controller
                 $data['partial_properties'],
                 $data['images'],
                 $data['partial_norms'],
+                $data['partial_actual'],
             );
 
             // Количество помеченного предмета сервер считает сам по кодам.
@@ -207,7 +210,7 @@ class ItemController extends Controller
             // учёте), поэтому решение приходит сверху, и без него сохранение
             // отклоняется.
             if ($properties !== null) {
-                $this->applyNormDecisions($model, $properties, $normDecisions);
+                $properties = $this->applyNormDecisions($model, $properties, $normDecisions, $actualBalance);
             }
 
             $model->update($data);
@@ -221,6 +224,21 @@ class ItemController extends Controller
 
             if ($properties !== null) {
                 $this->propertyService->sync($model, $properties);
+            }
+
+            // Фактические числа применяются после записи новых норм: остаток
+            // задаётся в единицах измерения, и старая норма к нему отношения не
+            // имеет.
+            if ($normDecisions !== []) {
+                $this->applyActualBalance($model, $normDecisions, $actualBalance);
+
+                // Модель в памяти держит значения, какими они были до правки:
+                // норма выведена из факта, и человек ввёл 10 000, а в базу легло
+                // 200. Ответ собирается из модели, поэтому без перечитывания
+                // форма после сохранения показала бы введённое и человек решил
+                // бы, что норма не применилась.
+                $model->refresh();
+                $model->unsetRelation('propertyValues');
             }
 
             if ($partial !== null) {
@@ -345,15 +363,23 @@ class ItemController extends Controller
     /**
      * Пересчёт остатков там, где у расходуемого свойства поменялось значение.
      *
+     * Возвращает значения свойств, какими их надо записать: при «своих
+     * числах» человек указал факт (сколько штук и сколько всего), и норма
+     * выводится из него, а не остаётся введённой. Иначе введённые 10 000 мл
+     * остались бы нормой при 200 бутылках по 200 мл, и остаток разошёлся бы с
+     * реальностью на два порядка.
+     *
      * @param  array<int, mixed>  $properties  нормализованные значения свойств
-     * @param  array<int, string>  $decisions  выбор человека: recalculate | keep
+     * @param  array<int, string>  $decisions  выбор человека: recalculate | keep | custom
+     * @param  array<string, mixed>  $actual  фактические числа при custom
+     * @return array<int, mixed>
      */
-    private function applyNormDecisions(Item $model, array $properties, array $decisions): void
+    private function applyNormDecisions(Item $model, array $properties, array $decisions, array $actual = []): array
     {
         $settings = $this->partialWriteoff->settings($model);
 
         if ($settings->isEmpty()) {
-            return;
+            return $properties;
         }
 
         $incoming = [];
@@ -368,7 +394,26 @@ class ItemController extends Controller
             $incoming[(int) $property['property_id']] = (float) $text;
         }
 
+        /*
+         * Вписанные фактические числа проверяются всегда, даже когда норма не
+         * менялась: человек может прийти и с одной только корректировкой
+         * («на самом деле 5 штук и 4 000 мл»), и раньше это молча записывалось
+         * как остаток 3 600 в текущей штуке — то есть система согласилась на
+         * число, которое не помещается в заявленные штуки.
+         */
+        foreach ((array) ($actual['properties'] ?? []) as $propertyId => $total) {
+            $propertyId = (int) $propertyId;
+            $norm = $incoming[$propertyId] ?? $this->partialWriteoff->norm($model, $propertyId);
+
+            if ($norm === null) {
+                continue;
+            }
+
+            $this->assertFits($propertyId, (float) $norm, (float) $total, (int) ($actual['quantity'] ?? 0));
+        }
+
         $pending = [];
+        $needed = [];
 
         foreach ($settings as $setting) {
             $propertyId = (int) $setting->property_id;
@@ -391,24 +436,375 @@ class ItemController extends Controller
 
             $mode = $decisions[$propertyId] ?? null;
 
+            // custom: человек вписал факт — сколько штук и сколько всего, — и
+            // норма выводится из него. Нужен ровно тогда, когда оба готовых
+            // варианта непригодны: человек ошибся в нормах (200 бутылок по
+            // 200 мл вместо 100 по 100), и никакой расчёт от чужой нормы его не
+            // спасёт.
+            if ($mode === 'custom') {
+                // Норма остаётся введённой: её и правит человек, ошибся он или
+                // нет. Проверяется только согласованность — влезает ли в
+                // вписанные штуки вписанный запас. Норму из запаса не выводим:
+                // при 5 штуках и 4 500 на руках вывелось бы «по 900», а человек
+                // вводил 1 000 и одну неполную штуку — это разные вещи.
+                $this->assertFits($propertyId, $newNorm, (float) ($actual['properties'][$propertyId] ?? 0), (int) ($actual['quantity'] ?? 0));
+                $pending[$propertyId] = ['norm' => $newNorm, 'mode' => 'custom'];
+                continue;
+            }
+
             if (! in_array($mode, ['recalculate', 'keep'], true)) {
-                throw ValidationException::withMessages([
-                    'partial_norms' => [sprintf(
-                        __('«%s»: значение изменилось с %s на %s, укажите, пересчитать штуки или оставить'),
-                        $this->propertyTitle($propertyId),
-                        $this->formatAmount($oldNorm),
-                        $this->formatAmount($newNorm)
-                    )],
-                ]);
+                // Список свойств, а не текст: клиент показывает человеку обе
+                // величины — старую и новую — и они у него уже есть, из формы.
+                // Собирать их обратно из строки сообщения значило бы разбирать
+                // текст, который человек видел на экране.
+                $needed[] = [
+                    'property_id' => $propertyId,
+                    'from'        => $oldNorm,
+                    'to'          => $newNorm,
+                    'current'     => $this->partialWriteoff->total($model, $propertyId, $oldNorm),
+                ];
+
+                continue;
             }
 
             $pending[$propertyId] = ['norm' => $newNorm, 'mode' => $mode];
         }
 
+        if ($needed !== []) {
+            /*
+             * Оба варианта считаются на весь набор сразу, а не по одному
+             * свойству: число штук у предмета одно, и оно равно большему из
+             * отмеченных. Пересчитать «Объём» отдельно от «Вес» значило бы
+             * показать человеку два несовместимых будущих и предложить выбрать
+             * между величинами, которых одновременно не бывает.
+             */
+            $changes = [];
+
+            foreach ($needed as $row) {
+                $changes[(int) $row['property_id']] = (float) $row['to'];
+            }
+
+            $outcomes = [];
+
+            foreach (['recalculate', 'keep'] as $mode) {
+                $preview = $this->partialWriteoff->previewNormChange($model, $changes, $mode);
+
+                $outcomes[$mode] = [
+                    'quantity' => $preview['quantity'],
+                    // Признак, что остаток в выбранные штуки помещается. При
+                    // «штуки прежние» это может быть не так, и тогда вариант
+                    // непригоден: он раздул бы запас молча.
+                    'fits'     => (bool) ($preview['properties'][array_key_first($changes)]['fits'] ?? true),
+                    'properties' => array_map(
+                        fn (int $propertyId): array => $preview['properties'][$propertyId] ?? ['stock' => 0.0, 'remaining' => 0.0, 'fits' => true],
+                        array_keys($changes),
+                    ),
+                ];
+            }
+
+            foreach ($needed as $index => $row) {
+                $needed[$index]['outcomes'] = [
+                    'recalculate' => [
+                        'quantity'  => $outcomes['recalculate']['quantity'],
+                        'stock'     => $outcomes['recalculate']['properties'][$index]['stock'] ?? 0.0,
+                        'remaining' => $outcomes['recalculate']['properties'][$index]['remaining'] ?? 0.0,
+                        'fits'      => $outcomes['recalculate']['fits'],
+                    ],
+                    'keep' => [
+                        'quantity'  => $outcomes['keep']['quantity'],
+                        'stock'     => $outcomes['keep']['properties'][$index]['stock'] ?? 0.0,
+                        'remaining' => $outcomes['keep']['properties'][$index]['remaining'] ?? 0.0,
+                        'fits'      => $outcomes['keep']['fits'],
+                    ],
+                ];
+            }
+
+            throw ValidationException::withMessages([
+                'partial_norms' => [sprintf(
+                    __('Норма изменилась: %s — укажите, пересчитать штуки или оставить'),
+                    implode(', ', array_map(
+                        fn (array $row): string => sprintf('%s %s → %s', $this->propertyTitle((int) $row['property_id']), $this->formatAmount((float) $row['from']), $this->formatAmount((float) $row['to'])),
+                        $needed
+                    ))
+                )],
+                'partial_norms_rows' => $needed,
+            ]);
+        }
+
+        // Значения свойств переписываются нормой, выведенной из факта: дальше
+        // их записывает обычная синхронизация, отдельного пути не нужно.
+        foreach ($incoming as $propertyId => $norm) {
+            foreach ($properties as $index => $property) {
+                if ((int) ($property['property_id'] ?? 0) === $propertyId) {
+                    $properties[$index]['value'] = $this->formatAmount($norm);
+                }
+            }
+        }
+
         // Порядок важен: решение принимается по старым нормам, поэтому все
-        // пересчёты идут до записи новых значений свойств.
+        // пересчёты идут до записи новых значений свойств. При «своих числах»
+        // пересчёта нет — остатки ставятся фактические.
         foreach ($pending as $propertyId => $decision) {
-            $this->partialWriteoff->applyNormChange($model, $propertyId, $decision['norm'], $decision['mode']);
+            if ($decision['mode'] === 'custom') {
+                continue;
+            }
+
+            $oldNorm = $this->partialWriteoff->norm($model, $propertyId);
+            $result = $this->partialWriteoff->applyNormChange($model, $propertyId, $decision['norm'], $decision['mode']);
+
+            /*
+             * Смена нормы меняет запас, а операции за ней не стоит: никто не
+             * принёс и не унёс. Без записи на графике остатков был бы скачок
+             * без причины — ровно то, ради чего мы и переводили график на
+             * операции.
+             */
+            $this->logs->record(
+                \App\Enums\AuditAction::ItemUpdated,
+                'item_id',
+                (int) $model->id,
+                (int) $model->user_id,
+                [
+                    'changes' => [
+                        'property_norm:' . $this->propertyTitle($propertyId) => [
+                            $this->formatAmount((float) $oldNorm),
+                            $this->formatAmount((float) $decision['norm']),
+                        ],
+                    ],
+                    'norm_change' => [
+                        'property_id' => $propertyId,
+                        'property_title' => $this->propertyTitle($propertyId),
+                        'from' => (float) $oldNorm,
+                        'to' => (float) $decision['norm'],
+                        'mode' => $decision['mode'],
+                        'stock' => (float) $result['stock'],
+                        'quantity' => (int) $result['quantity'],
+                    ],
+                ],
+            );
+        }
+
+        return $properties;
+    }
+
+    /**
+     * Остаток и число штук, вписанные человеком, — после смены норм.
+     *
+     * Единственный способ разойтись с остатком по-настоящему: вписать и штуки,
+     * и содержимое и получить несовместимую пару — 5 штук по 10 000 мл при
+     * 4 500 на руках. Проверяем это здесь и отказываем с текстом, в котором
+     * сказано, чего именно не хватает: молчание читалось бы как поломка
+     * сохранения.
+     *
+     * @param  array<int, string>  $decisions  режим по свойствам: recalculate | keep | custom
+     * @param  array<string, mixed>  $actual  фактические числа: quantity и properties
+     */
+    private function applyActualBalance(Item $model, array $decisions, array $actual): void
+    {
+        if (! in_array('custom', $decisions, true)) {
+            return;
+        }
+
+        $model->refresh();
+        $settings = $this->partialWriteoff->settings($model);
+        $quantity = max(0, (int) ($actual['quantity'] ?? 0));
+        $remainders = [];
+
+        foreach ((array) ($actual['properties'] ?? []) as $propertyId => $value) {
+            $propertyId = (int) $propertyId;
+            // Норма к этому моменту уже выведена из факта и записана
+            // синхронизацией свойств, поэтому она здесь своя, а не прежняя.
+            $norm = (float) $this->partialWriteoff->norm($model, $propertyId);
+
+            if ($norm <= 0) {
+                throw ValidationException::withMessages([
+                    'partial_actual' => [sprintf(
+                        __('«%s»: вписано %s, а штук нет — столько на руках быть не может'),
+                        $this->propertyTitle($propertyId),
+                        $this->formatAmount((float) $value)
+                    )],
+                ]);
+            }
+
+            $total = round((float) $value, 3);
+
+            if ($total < 0) {
+                throw ValidationException::withMessages([
+                    'partial_actual' => [sprintf(__('«%s»: остаток не может быть отрицательным'), $this->propertyTitle($propertyId))],
+                ]);
+            }
+
+            /*
+             * Остаток внутри текущей штуки: из полного запаса вычитается всё,
+             * что в целых штуках. Отрицательный означает, что штук введено
+             * больше, чем товара на руках, — это противоречие, и тихо принять
+             * его значило бы записать в карточку чушь.
+             */
+            $remaining = $total - ($quantity - 1) * $norm;
+
+            if ($quantity > 0 && $remaining < -PartialWriteoff::TOLERANCE) {
+                throw ValidationException::withMessages([
+                    'partial_actual' => [sprintf(
+                        __('«%s»: %s не помещаются в %d шт по %s — штук слишком много или запаса слишком мало'),
+                        $this->propertyTitle($propertyId),
+                        $this->formatAmount($total),
+                        $quantity,
+                        $this->formatAmount($norm)
+                    )],
+                ]);
+            }
+
+            $remainders[$propertyId] = max(0.0, $remaining);
+        }
+
+        if ($remainders === []) {
+            throw ValidationException::withMessages([
+                'partial_actual' => [__('Впишите, сколько всего осталось на руках')],
+            ]);
+        }
+
+        /*
+         * Штук должно быть ровно столько, сколько набирается из запаса.
+         *
+         * Больше — значит лишние пустые: 50 000 мл при норме 10 000 это ровно
+         * пять полных бутылок, и шестая была бы пустой, то есть её не
+         * существует. Меньше — товар не помещается. Отдельно проверяется
+         * каждое отмеченное свойство, потому что штуку держит любое из них, и
+         * одно может требовать больше штук, чем другое.
+         */
+        $held = 0;
+
+        foreach ($remainders as $propertyId => $remaining) {
+            $isReason = $settings->contains(
+                fn ($row) => (int) $row->property_id === $propertyId && $row->is_full_reason
+            );
+
+            if (! $isReason) {
+                continue;
+            }
+
+            $norm = (float) $this->partialWriteoff->norm($model, $propertyId);
+            $total = ($quantity - 1) * $norm + $remaining;
+            $held = max($held, (int) ceil($total / $norm - PartialWriteoff::TOLERANCE));
+        }
+
+        if ($quantity !== $held) {
+            throw ValidationException::withMessages([
+                'partial_actual' => [sprintf(
+                    __('По вписанным остаткам получается %d шт, а указано %d — лишние штуки были бы пустыми'),
+                    $held,
+                    $quantity
+                )],
+            ]);
+        }
+
+        /*
+         * Строки операции собираются ДО пересчёта: после persist остатки уже
+         * другие, и в журнале записалось бы «было 0, стало 1800» — движение,
+         * которого не было.
+         */
+        $before = (int) ($model->quantity ?? 1);
+        $code = (string) ($model->codes()->orderBy('id')->value('code') ?? '');
+        $rows = [];
+
+        foreach ($remainders as $propertyId => $remaining) {
+            $norm = (float) $this->partialWriteoff->norm($model, $propertyId);
+            $stock = $quantity <= 0 ? 0.0 : ($quantity - 1) * $norm + $remaining;
+            $oldStock = $before <= 0 ? 0.0 : ($before - 1) * $norm + min($remaining, $norm);
+
+            $rows[] = [
+                'code'            => $code,
+                'item_id'         => $model->id,
+                'owner_id'        => $model->user_id,
+                'title'           => $model->title,
+                'delta'           => 0,
+                'before'          => $before,
+                'after'           => $quantity,
+                'property_id'     => $propertyId,
+                'property_title'  => $this->propertyTitle($propertyId),
+                'amount'          => abs($stock - $oldStock),
+                'property_before' => $oldStock,
+                'property_after'  => $stock,
+                'is_writeoff'     => $stock < $oldStock,
+            ];
+        }
+
+        $changed = $quantity !== $before || collect($rows)->contains(fn (array $row) => $row['amount'] > 0);
+
+        $this->partialWriteoff->persist($model, $remainders, $quantity);
+
+        if ($changed) {
+            $this->initialStock->recordCorrection($model, $rows, __('Корректировка: смена нормы'));
+        }
+    }
+
+    /**
+     * Согласованность вписанных чисел: влезает ли запас в штуки.
+     *
+     * Норма здесь та, что человек ввёл в поле свойства, а «всего» — факт на
+     * руках. Проверяем ровно одно: помещается ли этот запас в указанное число
+     * штук при такой норме. Не помещается — значит одно из чисел не то, и
+     * сказать об этом лучше до записи, чем записать противоречие.
+     */
+    private function assertFits(int $propertyId, float $norm, float $total, int $quantity): void
+    {
+        if ($norm <= 0) {
+            return;
+        }
+
+        if ($quantity <= 0) {
+            if ($total > 0) {
+                throw ValidationException::withMessages([
+                    'partial_actual' => [sprintf(
+                        __('«%s»: указано %s, а штук нет — столько на руках быть не может'),
+                        $this->propertyTitle($propertyId),
+                        $this->formatAmount($total)
+                    )],
+                ]);
+            }
+
+            return;
+        }
+
+        /*
+         * Сразу видно, во сколько штук укладывается запас. Проверку точного
+         * совпадения делает applyActualBalance — там видно и то, что штуку
+         * держит другое свойство, — а здесь ловим только грубое: меньше
+         * заявленного товар тем более не поместится.
+         */
+        $fits = (int) ceil(max(0.0, $total) / $norm - PartialWriteoff::TOLERANCE);
+
+        if ($quantity < $fits) {
+            throw ValidationException::withMessages([
+                'partial_actual' => [sprintf(
+                    __('«%s»: %s — это %d шт, а указано %d'),
+                    $this->propertyTitle($propertyId),
+                    $this->formatAmount($total),
+                    $fits,
+                    $quantity
+                )],
+            ]);
+        }
+
+        $remaining = $total - ($quantity - 1) * $norm;
+
+        /*
+         * Остаток текущей штуки обязан лежать в пределах [0, нормы]. Меньше нуля
+         * значит, что штук вписано больше, чем товара; больше нормы — что
+         * товара больше, чем в них помещается. Обе стороны — то же самое: одно
+         * из чисел лишнее. Ровно норма — не ошибка: это просто текущая штука,
+         * которая ещё не тронута, то есть 5 полных по 10 000 это 50 000.
+         */
+        if ($remaining < -PartialWriteoff::TOLERANCE || $remaining > $norm + PartialWriteoff::TOLERANCE) {
+            throw ValidationException::withMessages([
+                'partial_actual' => [sprintf(
+                    __('«%s»: в %d шт по %s помещается %s, а указано %s — проверьте штуки или остаток'),
+                    $this->propertyTitle($propertyId),
+                    $quantity,
+                    $this->formatAmount($norm),
+                    $this->formatAmount(max(0.0, $quantity * $norm)),
+                    $this->formatAmount($total)
+                )],
+            ]);
         }
     }
 
